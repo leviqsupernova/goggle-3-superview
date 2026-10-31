@@ -3,15 +3,16 @@ using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
+using Goggles3.Core;
 using Microsoft.Win32;
 
 namespace Goggles3.Windows;
 
 internal static class AdapterLocator
 {
-    public static Task<IPAddress?> FindAsync() => Task.Run(Find);
+    public static Task<Adapter> FindAsync() => Task.Run(Find);
 
-    private static IPAddress? Find()
+    private static Adapter Find()
     {
         // Identify USB hardware, not a user-editable adapter name or any NIC
         // with the same subnet. Read the PnP identity directly to avoid starting
@@ -31,9 +32,10 @@ internal static class AdapterLocator
             if ((status & 0x400) != 0) // DN_HAS_PROBLEM
                 throw new IOException($"Windows cannot activate the goggles USB device (code {problem}). Reconnect the cable; in a virtual machine, check USB forwarding.");
             foreach (UnicastIPAddressInformation address in adapter.GetIPProperties().UnicastAddresses)
-                if (address.Address.Equals(IPAddress.Parse("192.168.60.1")) && address.PrefixLength == 24) return address.Address;
+                if (address.Address.Equals(IPAddress.Parse("192.168.60.1")) && address.PrefixLength == 24) return new Adapter(AdapterState.Ready, address.Address);
+            return new Adapter(AdapterState.NeedsSetup); // the goggles adapter is there, without our address
         }
-        return null;
+        return new Adapter(AdapterState.Missing);
     }
 
     [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]

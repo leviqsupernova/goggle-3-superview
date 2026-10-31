@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -34,6 +35,9 @@ public partial class MainWindow : Window
     private bool logDirty;
     private Task logWrite = Task.CompletedTask;
     private string? currentRecordingPath;
+    private CancellationTokenSource? autoConnect;
+    private Task autoConnectTask = Task.CompletedTask;
+    private string? lastStatus;
 
     public MainWindow()
     {
@@ -48,6 +52,7 @@ public partial class MainWindow : Window
             string[] args = Environment.GetCommandLineArgs();
             int replayIndex = Array.IndexOf(args, "--replay");
             if (replayIndex >= 0 && replayIndex + 1 < args.Length) StartReplay(args[replayIndex + 1]);
+            else if (args.Contains("--connect")) StartAutoConnect(); // superflash: connect and keep reconnecting, no dialogs
             ConnectButton.Focus();
         };
         var diagnosticMenu = new System.Windows.Controls.ContextMenu();
@@ -62,30 +67,56 @@ public partial class MainWindow : Window
         busy = true; ConnectButton.IsEnabled = false;
         try
         {
-            if (session != null) { await DisconnectAsync(); return; }
-            Status.Text = "Connecting to the goggles…";
-            var address = await AdapterLocator.FindAsync();
-            if (closing) return;
-            if (address == null)
+            if (session != null || autoConnect != null) { await DisconnectAsync(); return; }
+            Status.Text = AutoConnect.Connecting;
+            if ((await AdapterLocator.FindAsync()).State == AdapterState.NeedsSetup)
             {
                 if (MessageBox.Show(this, "The Goggles 3 RNDIS adapter needs to be configured. The address 192.168.60.1/24 will be added only to that adapter. Wi-Fi, Ethernet, DNS and your default gateway will not be changed. Windows will ask for administrator permission. Set it up now?",
                     "Set up USB connection", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
                 { Status.Text = "Connection cancelled"; return; }
                 await AdapterLocator.PrepareAsync();
-                address = await AdapterLocator.FindAsync();
-                if (closing) return;
-                if (address == null) throw new IOException("Goggles 3 RNDIS adapter not found. Open the tutorial for help.");
             }
-            replay = false;
-            var active = CreateSession(); active.Start(new UdpVideoReceiver(address));
+            if (closing) return;
+            StartAutoConnect();
         }
         catch (Exception error) { AddLog(error.Message); await DisconnectAsync(); Status.Text = error.Message; }
         finally { busy = false; if (!closing) ConnectButton.IsEnabled = true; }
     }
 
+    /// <summary>Connect until Disconnect/close: retries while the goggles are absent, reconnects when a session ends.</summary>
+    private void StartAutoConnect()
+    {
+        replay = false; autoConnect = new CancellationTokenSource();
+        ShowConnectedLook();
+        var loop = new AutoConnect(_ => AdapterLocator.FindAsync(),
+            (address, token) => Dispatcher.InvokeAsync(() => RunSessionAsync(address, token)).Task.Unwrap(),
+            text => Dispatcher.BeginInvoke(new Action(() => ShowStatus(text))));
+        autoConnectTask = loop.RunAsync(autoConnect.Token);
+    }
+
+    private void ShowStatus(string text)
+    {
+        if (autoConnect == null || closing) return; // a late update after Disconnect
+        Status.Text = text;
+        if (text != lastStatus) AddLog(text); // the loop repeats its status every 2 s: log changes only
+        lastStatus = text;
+    }
+
+    /// <summary>One live session on the UI thread; completes with the reason it ended.</summary>
+    private async Task<string> RunSessionAsync(IPAddress address, CancellationToken token)
+    {
+        var ended = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CreateSession(message => ended.TrySetResult(message)).Start(new UdpVideoReceiver(address));
+        string reason;
+        using (token.Register(() => ended.TrySetResult("Disconnected")))
+            reason = await ended.Task;
+        await StopSessionAsync();
+        return reason;
+    }
+
     private string DecoderPath => Path.Combine(AppContext.BaseDirectory,"ffmpeg","ffmpeg.exe");
 
-    private FfmpegVideoSession CreateSession()
+    private FfmpegVideoSession CreateSession(Action<string> ended)
     {
         if (!File.Exists(DecoderPath)) throw new FileNotFoundException("Decoder missing. Extract the entire ZIP, not just Goggle 3 LiveView.exe.");
         long token = ++generation;
@@ -112,11 +143,7 @@ public partial class MainWindow : Window
         };
         active.Bitrate += value => Dispatcher.BeginInvoke(new Action(() => { if (token == generation) rate = value; }));
         active.Log += text => { if (token == Interlocked.Read(ref generation)) AddLog(text); };
-        active.Ended += message => Dispatcher.BeginInvoke(new Action(async () =>
-        {
-            if (token != generation || closing) return;
-            await DisconnectAsync(); Status.Text = message;
-        }));
+        active.Ended += message => Dispatcher.BeginInvoke(new Action(() => { if (token == generation) ended(message); }));
         active.RecordingEnded += result => Dispatcher.BeginInvoke(new Action(() =>
         {
             if (result.Path != currentRecordingPath) return;
@@ -127,15 +154,24 @@ public partial class MainWindow : Window
                 (result.Dropped > 0 ? $" · some video was skipped (computer too busy)" : "");
             RecordButton.IsEnabled = session != null && Video.Source != null;
         }));
+        ShowConnectedLook();
+        return active;
+    }
+
+    private void ShowConnectedLook()
+    {
         ConnectLabel.Text = "Disconnect";
         ConnectGlyph.Data = Geometry.Parse("M 0,0 L 12,0 L 12,12 L 0,12 Z");
         IdleTitle.Text = "Waiting for video"; IdleHint.Text = "Check LiveView and your goggles settings.";
-        return active;
     }
 
     private void StartReplay(string path)
     {
-        try { replay = true; CreateSession().StartReplay(path); }
+        try
+        {
+            replay = true;
+            CreateSession(async message => { if (closing) return; await DisconnectAsync(); Status.Text = message; }).StartReplay(path);
+        }
         catch (Exception error) { Status.Text = error.Message; AddLog(error.Message); }
     }
 
@@ -145,15 +181,36 @@ public partial class MainWindow : Window
 
     private async Task DisconnectCoreAsync()
     {
+        CancellationTokenSource? loop = autoConnect; autoConnect = null;
+        if (loop != null)
+        {
+            loop.Cancel();
+            try { await autoConnectTask; } catch (OperationCanceledException) { } // the loop stops its own session
+            loop.Dispose();
+        }
+        await StopSessionAsync();
+        Status.Text = "Disconnected"; StatusDot.Fill = new SolidColorBrush(Color.FromArgb(96,255,255,255));
+        ConnectLabel.Text = "Connect"; ConnectGlyph.Data = Geometry.Parse("M 7,0 L 0,8 L 5,8 L 3,15 L 11,6 L 6,6 Z");
+        IdleTitle.Text = "Your view, on a bigger screen"; IdleHint.Text = "Connect your Goggles 3 via USB-C and click Connect.";
+    }
+
+    /// <summary>Ends the current session (saving a running recording) and clears the video, keeps the connect state.</summary>
+    private async Task StopSessionAsync()
+    {
         generation++; FfmpegVideoSession? active = session; session = null;
         if (recording) { recording = false; saving = true; RecordLabel.Text = "Saving…"; }
         if (active != null) await active.DisposeAsync();
         Video.Source = null; Idle.Visibility = Visibility.Visible;
-        Status.Text = "Disconnected"; StatusDot.Fill = new SolidColorBrush(Color.FromArgb(96,255,255,255));
-        ConnectLabel.Text = "Connect"; ConnectGlyph.Data = Geometry.Parse("M 7,0 L 0,8 L 5,8 L 3,15 L 11,6 L 6,6 Z");
-        IdleTitle.Text = "Your view, on a bigger screen"; IdleHint.Text = "Connect your Goggles 3 via USB-C and click Connect.";
         RecordButton.IsEnabled = false; Fps.Text = Resolution.Text = Bitrate.Text = "—";
         frames = 0; rate = 0;
+    }
+
+    /// <summary>Second launch (single instance): show this window; with --connect also connect if idle.</summary>
+    public void BringToFront(bool connect)
+    {
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Show(); Activate();
+        if (connect && session == null && autoConnect == null && !busy && !closing) StartAutoConnect();
     }
 
     private void RefreshStats()
