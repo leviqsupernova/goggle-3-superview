@@ -24,10 +24,19 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
     {
         receiver.Bitrate += rate => Bitrate?.Invoke(rate);
         receiver.Log += text => Log?.Invoke(text);
-        Begin((input, token) => receiver.RunAsync(async (data, ct) =>
+        Begin(async (input, token) =>
         {
-            await input.WriteAsync(data, ct).ConfigureAwait(false);
-        }, token));
+            // ~4 s at 60 units/s: rides out decoder hiccups without blocking UDP reception or ACKs.
+            var queue = new H264Queue(240, text => Log?.Invoke(text));
+            Task receiving = Task.Run(async () =>
+            {
+                try { await receiver.RunAsync((data, _) => { queue.Add(data); return ValueTask.CompletedTask; }, token).ConfigureAwait(false); }
+                finally { queue.Complete(); }
+            }, CancellationToken.None);
+            await foreach (byte[] chunk in queue.ReadAllAsync(token).ConfigureAwait(false))
+                await input.WriteAsync(chunk, token).ConfigureAwait(false);
+            await receiving.ConfigureAwait(false); // surfaces a receiver failure
+        });
     }
 
     // Explicit local-file test mode, never passed off as a live USB session.
