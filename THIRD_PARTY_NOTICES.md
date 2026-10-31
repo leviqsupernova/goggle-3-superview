@@ -10,7 +10,6 @@ Goggle 3 LiveView runs a separately built FFmpeg executable, without GPL or non-
 - SHA-256: `6136812ea6d4e68bdba27e33c2a94382711cdf4f8602ffef056ff792bd6f9818`
 - Build configuration: `scripts/build-decoder.sh`.
 - FFmpeg source is unmodified; components are selected through build configuration.
-- The executable at `Goggle 3 LiveView.app/Contents/MacOS/g3-decoder` can be replaced with a compatible build; locally re-sign the app afterward. There is no license restriction against modifying or debugging this app to use a modified version.
 - The matching full FFmpeg source archive is provided with each release. No Homebrew shared libraries or proprietary reference-app components are distributed.
 
 ## Windows
