@@ -54,7 +54,7 @@ static async Task<int> Check(string ffmpeg, string clip, string mp4)
     await done.Task.WaitAsync(deadline.Token);
     RecordingResult recording = await recorded.Task.WaitAsync(deadline.Token);
     Console.WriteLine(JsonSerializer.Serialize(new { frames, recording }, new JsonSerializerOptions { WriteIndented = true }));
-    return frames > 0 && recording.Frames > 0 && recording.Error == null ? 0 : 1;
+    return frames > 0 && recording.Chunks > 0 && recording.Error == null ? 0 : 1;
 }
 
 /// <summary>Writes CSV rows to the console and, if given, a file.</summary>

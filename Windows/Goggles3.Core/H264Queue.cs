@@ -29,13 +29,17 @@ public sealed class H264Queue(int capacity, Action<string>? log = null)
 
     public IAsyncEnumerable<byte[]> ReadAllAsync(CancellationToken token) => channel.Reader.ReadAllAsync(token);
 
-    public void Complete() => channel.Writer.TryComplete();
+    public bool Complete() => channel.Writer.TryComplete();
 
     /// <summary>True when the chunk holds an SPS (7) or IDR slice (5) NAL unit.</summary>
-    public static bool ContainsKeyframe(ReadOnlySpan<byte> chunk)
+    public static bool ContainsKeyframe(ReadOnlySpan<byte> chunk) => IndexOfKeyframe(chunk) >= 0;
+
+    /// <summary>Offset of the start code of the first SPS or IDR NAL unit, or -1.</summary>
+    public static int IndexOfKeyframe(ReadOnlySpan<byte> chunk)
     {
         for (int i = 0; i + 3 < chunk.Length; i++)
-            if (chunk[i] == 0 && chunk[i + 1] == 0 && chunk[i + 2] == 1 && (chunk[i + 3] & 0x1f) is 5 or 7) return true;
-        return false;
+            if (chunk[i] == 0 && chunk[i + 1] == 0 && chunk[i + 2] == 1 && (chunk[i + 3] & 0x1f) is 5 or 7)
+                return i > 0 && chunk[i - 1] == 0 ? i - 1 : i;
+        return -1;
     }
 }

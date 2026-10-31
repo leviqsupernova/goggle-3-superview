@@ -117,7 +117,7 @@ public partial class MainWindow : Window
             RecordingNotice.Visibility = Visibility.Visible;
             RecordingText.Foreground = Brushes.LightGray;
             RecordingText.Text = result.Error ?? $"Saved to Videos/Goggle 3 LiveView: {Path.GetFileName(result.Path)}" +
-                (result.Dropped > 0 ? $" · {result.Dropped} frames dropped under load" : "");
+                (result.Dropped > 0 ? $" · some video was skipped (computer too busy)" : "");
             RecordButton.IsEnabled = session != null && Video.Source != null;
         }));
         ConnectLabel.Text = "Disconnect";
