@@ -88,7 +88,7 @@ public partial class MainWindow : Window
         long token = ++generation;
         var active = new FfmpegVideoSession(DecoderPath); session = active;
         frames = 0; rate = 0; lastFrame = clock.Elapsed.TotalSeconds;
-        active.Frame += pixels =>
+        active.Frame += () =>
         {
             if (Interlocked.CompareExchange(ref pendingUi,1,0) != 0) return;
             Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
@@ -96,6 +96,7 @@ public partial class MainWindow : Window
                 try
                 {
                     if (token != generation || closing) return;
+                    if (active.TakeLatestFrame() is not { } pixels) return;
                     bitmap.WritePixels(new Int32Rect(0,0,1920,1080), pixels,1920*4,0);
                     Video.Source = bitmap; Idle.Visibility = Visibility.Collapsed;
                     frames++; lastFrame = clock.Elapsed.TotalSeconds;

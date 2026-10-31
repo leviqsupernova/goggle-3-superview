@@ -42,9 +42,9 @@ static async Task<int> Check(string ffmpeg, string clip, string mp4)
     int frames = 0;
     await using var session = new FfmpegVideoSession(ffmpeg);
     session.Log += text => Console.Error.WriteLine(text);
-    session.Frame += pixels =>
+    session.Frame += () =>
     {
-        if (pixels.Length != FfmpegVideoSession.FrameSize) throw new InvalidDataException("Unexpected frame size.");
+        if (session.TakeLatestFrame() is { Length: not FfmpegVideoSession.FrameSize }) throw new InvalidDataException("Unexpected frame size.");
         Interlocked.Increment(ref frames);
     };
     session.Ended += _ => done.TrySetResult();

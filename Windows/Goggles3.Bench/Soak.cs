@@ -31,7 +31,7 @@ public static class Soak
             {
                 var finished = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 await using var session = new FfmpegVideoSession(ffmpeg);
-                session.Frame += _ =>
+                session.Frame += () =>
                 {
                     long now = Stopwatch.GetTimestamp();
                     long gap = now - Interlocked.Exchange(ref lastFrameTicks, now);

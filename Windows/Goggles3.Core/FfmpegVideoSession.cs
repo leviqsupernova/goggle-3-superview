@@ -12,13 +12,18 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
     private readonly object recordingLock = new();
     private Mp4Recorder? recorder;
     private Task saving = Task.CompletedTask;
-    public event Action<byte[]>? Frame;
+    /// <summary>A new frame is ready: get it with <see cref="TakeLatestFrame"/> (any thread).</summary>
+    public event Action? Frame;
+    private readonly LatestFrame latest = new(FrameSize);
     public event Action<double>? Bitrate;
     public event Action<string>? Log;
     public event Action<string>? Ended;
     public event Action<RecordingResult>? RecordingEnded;
 
     public FfmpegVideoSession(string decoderPath) => this.decoderPath = decoderPath;
+
+    /// <summary>Newest decoded BGRA frame, valid until the next call; null if none arrived since the last call.</summary>
+    public byte[]? TakeLatestFrame() => latest.TakeLatest();
 
     public void Start(UdpVideoReceiver receiver)
     {
@@ -83,7 +88,7 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
                 var watch = Stopwatch.StartNew(); long frames = 0;
                 while (!lifetime.IsCancellationRequested)
                 {
-                    byte[] pixels = new byte[FrameSize];
+                    byte[] pixels = latest.Back;
                     int offset = 0;
                     while (offset < pixels.Length)
                     {
@@ -98,7 +103,8 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
                         if (delay > 0) await Task.Delay(TimeSpan.FromSeconds(delay), lifetime.Token).ConfigureAwait(false);
                     }
                     frames++;
-                    Frame?.Invoke(pixels);
+                    latest.Publish();
+                    Frame?.Invoke();
                 }
                 await active.WaitForExitAsync(lifetime.Token).ConfigureAwait(false);
                 if (sourceFailure != null) throw new IOException("USB reception: " + sourceFailure.Message, sourceFailure);
