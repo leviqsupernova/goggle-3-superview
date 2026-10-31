@@ -25,7 +25,7 @@ On Windows: `./Windows/scripts/Publish.ps1 -Runtime win-x64` -> `outputs/Goggle-
 Replay without goggles: `"Goggle 3 LiveView.exe" --replay C:\path\capture.h264` (bypasses UDP + protocol).
 Bench start: `"Goggle 3 LiveView.exe" --connect` (connect at launch, keep reconnecting, no dialogs; second launch focuses the window).
 Test clip (live-like: no B-frames, ~26 Mbps): `ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=60 -t 20 -c:v libx264 -preset veryfast -b:v 30M -maxrate 30M -bufsize 10M -g 60 -bf 0 -f h264 clip.h264`.
-Soak (Linux, fake goggles -> real Core pipeline, CSV per interval): `dotnet run -c Release --project Windows/Goggles3.Bench -- soak --file clip.h264 --minutes 480 --csv soak.csv [--record out.mp4]`.
+Soak (Linux, fake goggles -> real Core pipeline, CSV per interval): `dotnet run -c Release --project Windows/Goggles3.Bench -- soak --file clip.h264 --minutes 30 --csv soak.csv [--record out.mp4] [--restart-every 30]`.
 Faults: `--loss %`, `--reorder %`, `--stall every:for [--resubscribe]`, `--closed s`. Slow decoder: `kill -STOP/-CONT $(pgrep -x ffmpeg)`
 (never `pkill -f`: it matches the calling shell). Socket drops: `Udp` `RcvbufErrors` in `/proc/net/snmp`.
 Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: fix warnings, never suppress them.
@@ -85,7 +85,8 @@ CI does not cover: running the WPF UI, `Prepare-Usb.ps1`, real goggles. Those ar
       superflash: menu key + exe path in its `config.ini`.
 - [ ] 5. Structure + UI (skills: `impeccable`, `stop-slop`, `run` for screenshots). Library: WPF + WPF-UI (decided). UI can only be run and screenshotted on
       the Windows PC, so UI work is done in small batches and the owner sends screenshots/feedback; logic stays in `Core` (testable on Linux).
-- [ ] 6. Soak: 8 h fake goggles on Linux (needs `Core` only), 8 h real goggles on the Windows bench.
+- [x] 6. Soak: 30 min stress soak on Linux instead of 8 h (owner decision 2026-11-01), passed, see `STEPLOG.md`.
+      Real goggles: short check on the bench when available.
 - [ ] 7. Release zip, README. No PRs to `upstream`.
 Model: Opus for steps 1-3 and structure decisions; Sonnet for 0, 4, 6, 7 and mechanical porting.
 
@@ -107,6 +108,8 @@ never block on a dialog when the goggles are absent (status text instead), refus
 ## Decisions
 
 - 2026-10-31: standalone fork (see top), single viewer only, Multi removed.
+- 2026-11-01: no 8 h soak; a 30 min stress soak (restarts, stalls, loss, decoder pauses, recording) replaces it.
+- 2026-11-01: UI checked by CI screenshots on windows-latest (`ui-screenshots` workflow), not by owner screenshots.
 - 2026-10-31: UI = **WPF + WPF-UI** (Windows 11 Fluent look). Not Avalonia: `Linux/` is deleted, nothing is shared across OSes.
   Consequence: no UI testing on the Arch box. Keep all logic out of `MainWindow.xaml.cs` (move to `Core`) so Linux tests cover it.
 
@@ -117,3 +120,5 @@ never block on a dialog when the goggles are absent (status text instead), refus
 - 2026-10-31 step 3 (Linux soak): decoder pauses -> 0 kernel UDP drops (was 1587); 15 MB/s allocated (was 490), 0 Gen2/s;
   recorder killed mid-file -> still playable. Bench checks pending: close while saving, Stop without video, Prepare-Usb guard,
   recording length vs clock (constant 60 fps timestamps).
+- 2026-11-01 stress soak (Linux, 30 min): 57 restarts, 0 unplanned ends, memory/threads flat, 2 ffmpeg, 0 UDP drops,
+  58 recordings all readable (99 121/99 121 frames).
