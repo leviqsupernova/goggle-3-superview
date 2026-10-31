@@ -13,7 +13,6 @@ Free, open-source USB viewers for **Mac, Windows and Linux**. Watch the goggles 
 | Application | What it does | Platforms |
 |---|---|---|
 | **Goggle 3 LiveView** | One pair of goggles, one feed and MP4 recording | Mac / Windows 0.3.2; Linux x64 preview 0.3.3 |
-| **Goggle 3 LiveView Multi** | Up to four USB channels, a 2×2 mosaic, individual and global MP4 recording | Apple Silicon Mac / Windows x64 |
 
 Close other viewers before connecting to the same goggles.
 
@@ -47,25 +46,6 @@ sudo apt install ./Goggle-3-LiveView-Linux-x64-0.3.3.deb
 ![Goggle 3 LiveView running on Linux, ready for USB](docs/assets/app-linux-en.png)
 
 Linux builds, package installation, UI, protocol loopback, decoding and MP4 recording are checked automatically. Physical Goggles 3 reception on Linux still needs community feedback; report problems through [GitHub issues](https://github.com/knpuma/goggle-3-liveview/issues).
-
-## Download Multi
-
-**[Multi for Mac · English · 0.4.1](https://github.com/knpuma/goggle-3-liveview/releases/download/multi-v0.4.1/Goggle-3-LiveView-Multi-Mac-English.dmg)** · **[Español · 0.4.0](https://github.com/knpuma/goggle-3-liveview/releases/download/multi-v0.4.0/Goggle-3-LiveView-Multi-Mac.dmg)** · [Multi guide](Multi/README.md)
-
-**[Multi for Windows x64 · 0.5.0 · English / Español](https://github.com/knpuma/goggle-3-liveview/releases/download/multi-v0.5.0/Goggle-3-LiveView-Multi-Windows-x64-0.5.0.zip)** · [Windows guide](Windows/Multi-README.md) · [Guía en español](Windows/Multi-LEEME.md)
-
-**Mac:** Apple Silicon, macOS 14 or later. **Windows:** Windows 11 x64 or Windows 10 22H2 x64. Extract the entire ZIP and open **Goggle 3 LiveView Multi.exe**. The runtime and encoder are included; use **ES / EN** to change language.
-
-![Goggle 3 LiveView Multi in English](docs/assets/multi-mac-en.png)
-
-- **2×2 mosaic:** up to four named channels, with independent connection and video statistics.
-- **Individual and global recording:** save a channel or the entire mosaic, or both at once. Mosaic recording is 1920×1080 at approximately 30 fps.
-- **Clean fullscreen:** one channel or the complete mosaic. Press Esc to return.
-- **Local files:** Movies → Goggle 3 LiveView Multi on Mac; Videos → Goggle 3 LiveView Multi on Windows. No audio or Internet uploads.
-
-![Built-in English tutorial](docs/assets/multi-tutorial-en.png)
-
-**Language editions:** Mac apps and the original Windows viewer have separate English and Spanish downloads. Multi for Windows and the Linux viewer include an **ES / EN** switch in the app.
 
 ## Connect in four steps
 
@@ -101,7 +81,7 @@ zsh scripts/make-app.sh
 open "outputs/Goggle 3 LiveView.app"
 ```
 
-[Windows build guide](Windows/README.md) · [Linux build guide](Linux/README.md#build) · [Multi project and build guide](Multi/README.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[Windows build guide](Windows/README.md) · [Linux build guide](Linux/README.md#build) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 Historical internal module names and identifiers are retained for compatibility. Older Goggles3Mac recordings stay in their original folder.
 
@@ -111,4 +91,4 @@ Project code is licensed under [MIT](LICENSE). Mac/Windows FFmpeg is distributed
 
 Independent community project, not affiliated with or endorsed by DJI. DJI and Goggles are trademarks of their respective owners. Always use the goggles as your primary display when flying.
 
-[Report a Multi problem](https://github.com/knpuma/goggle-3-liveview/issues/new?template=multi-error.yml) or [ask for help](https://github.com/knpuma/goggle-3-liveview/issues). Include your app version and language, computer, operating system, goggles firmware and reproduction steps. **Do not post serial numbers or private information.**
+[ask for help](https://github.com/knpuma/goggle-3-liveview/issues). Include your app version and language, computer, operating system, goggles firmware and reproduction steps. **Do not post serial numbers or private information.**

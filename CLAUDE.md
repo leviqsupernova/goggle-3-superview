@@ -65,8 +65,8 @@ Each fix needs a test or soak measurement that shows the problem first. "Fixed" 
 
 ## Plan (status: [ ] todo, [x] done)
 
-- [ ] 0. Setup: .NET SDK, build + `dotnet test` green on Arch, add `*.h264` to `.gitignore`.
-- [ ] 0b. Removal (own commit, `dotnet test` + build green after): delete Multi per the Removal list; update README.md,
+- [x] 0. Setup: .NET SDK, build + `dotnet test` green on Arch, add `*.h264` to `.gitignore`.
+- [x] 0b. Removal (own commit, `dotnet test` + build green after): delete Multi per the Removal list; update README.md,
       this file, and rename the app/exe if decided. Fixes from Multi to port in step 3 are listed under Removal list.
 - [ ] 1. Audit: graphify index of this fork, `ponytail-audit`, Codex review (`codex-review:code`) -> ranked list, verdicts here.
 - [ ] 2. Fake goggles (UDP sender speaking `LiveProtocol`, plays an H.264 file, packet loss/stall/reorder options)
