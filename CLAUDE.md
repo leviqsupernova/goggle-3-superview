@@ -2,22 +2,25 @@
 
 Fork of `knpuma/goggle-3-liveview` (MIT, by a friend of the owner). Repo: `leviqsupernova/goggle-3-superview`, branch `main`.
 **Standalone fork, no merging with upstream** (decided 2026-10-31): we never pull from or send PRs to the friend's repo, so
-unneeded code is deleted, not just ignored. Keep the `upstream` remote (`https://github.com/knpuma/goggle-3-liveview.git`)
-only to read their history (`git fetch upstream`, `git diff`); never `git merge upstream/...`. Development on Arch Linux, the app runs on **Windows** at the
-drone bench, launched by the superflash tool (`~/Desktop/superflash`, separate repo) in its own window.
+unneeded code is deleted, not just ignored. Only `origin` is configured; to read their history add
+`git remote add upstream https://github.com/knpuma/goggle-3-liveview.git` (fetch/diff only, never merge).
+Development on Arch Linux, the app runs on **Windows** at the drone bench, launched by the superflash tool (`~/Desktop/superflash`, separate repo) in its own window.
 
 ## Scope
 
 - **In scope:** the Windows single viewer: `Windows/Goggles3.Core`, `Windows/Goggles3.Windows`, `Windows/Goggles3.Core.Tests`,
-  `Windows/scripts/Publish.ps1`, `Windows/scripts/Prepare-Usb.ps1`.
+  `Windows/Goggles3.Bench` (dev tool: fake goggles + soak, not shipped), `Windows/scripts/Publish.ps1`, `Windows/scripts/Prepare-Usb.ps1`.
 - Goals: auto-connect, stable video for 8 h+, cleaner code, a better Windows UI, launch from superflash.
 
-## Commands (Linux dev box)
+## Commands (Linux dev box, verified 2026-10-31)
 
 ```sh
-dotnet test Windows/Goggles3.Core.Tests                         # protocol + UDP tests, run cross-platform
+dotnet test Windows/Goggles3.Core.Tests                         # all Core tests, ~5 s; recording tests need ffmpeg on PATH
+dotnet test Windows/Goggles3.Core.Tests --filter RecordingTests # one class (focused run while iterating)
 dotnet build Windows/Goggles3.Windows -c Release                # WPF builds on Linux (EnableWindowsTargeting), cannot run here
 ```
+The whole suite is fast: run it before each commit. On Windows the tests use the bundled ffmpeg (cannot read MP4, so the
+recording tests only check "saved, non-empty" unless a full ffmpeg is on PATH).
 On Windows: `./Windows/scripts/Publish.ps1 -Runtime win-x64` -> `outputs/Goggle-3-LiveView-Windows-x64/`.
 Replay without goggles: `"Goggle 3 LiveView.exe" --replay C:\path\capture.h264` (bypasses UDP + protocol).
 Test clip (live-like: no B-frames, ~26 Mbps): `ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=60 -t 20 -c:v libx264 -preset veryfast -b:v 30M -maxrate 30M -bufsize 10M -g 60 -bf 0 -f h264 clip.h264`.
@@ -49,14 +52,19 @@ MP4 (+ cached SPS/PPS), recorder lifecycle, triple-buffered frames, decoder star
 Open: #11 decoder restart -> step 4 auto-reconnect; #12/#13 plausible only; constant 60 fps recording timestamps.
 Each fix needs a test or soak measurement that shows the problem first. "Fixed" means measured, not "looks right".
 
+## CI
+
+`.github/workflows/tests.yml`, on every PR and push to `main`: `dotnet test` + WPF Release build on `ubuntu-latest`
+(apt ffmpeg) and `windows-latest` (bundled ffmpeg, real Windows UDP/ICMP behaviour). Check it with `gh pr checks <n>`.
+CI does not cover: running the WPF UI, `Prepare-Usb.ps1`, real goggles. Those are bench checks (see Bench results).
+
 ## Working rules
 
-- Plan before editing anything beyond a one-file change; state which files change and how it is verified.
-- Bugs: reproduce first (test or fake goggles), then fix, then show the test passing.
-- Smallest change that fully works. No new dependency for a few lines. Keep existing safety checks
-  (adapter scoping, address conflict refusal, `Prepare-Usb.ps1` restore).
-- Codex reviews findings; Claude makes the final call and writes the verdict (kept / rejected + why) in the step log.
-- One branch + PR per plan step, small commits. Run `dotnet test` before every commit.
+- Bugs: reproduce first (test or fake goggles soak), then fix, then show the test passing.
+- Keep existing safety checks (adapter scoping, address conflict refusal, `Prepare-Usb.ps1` restore).
+- Codex: one review + one follow-up per plan step (the `codex-review:code` skill would loop up to 5 rounds: stop after
+  the follow-up). Claude makes the final call and writes kept / rejected + why in `STEPLOG.md`.
+- One branch + PR per plan step, small commits.
 - **IMPORTANT:** never change network settings other than the DJI adapter, and never add flight commands or uploads.
 - Do not commit captures (`*.h264`), `outputs/`, soak logs, or personal paths.
 - After a decision or a bench result, update this file (Decisions / Bench results). Keep it under ~200 lines.
@@ -65,13 +73,12 @@ Each fix needs a test or soak measurement that shows the problem first. "Fixed" 
 ## Plan (status: [ ] todo, [x] done)
 
 - [x] 0. Setup: .NET SDK, build + `dotnet test` green on Arch, add `*.h264` to `.gitignore`.
-- [x] 0b. Removal (own commit, `dotnet test` + build green after): delete Multi per the Removal list; update README.md,
-      this file, and rename the app/exe if decided. Fixes from Multi to port in step 3 are listed under Removal list.
-- [x] 1. Audit: `ponytail-audit` + Codex review -> ranked list + verdicts in `STEPLOG.md`. Graphify: repo not indexed (owner adds it).
+- [x] 0b. Removal: Multi, macOS, Linux, ARM64 deleted (see Removal). App/exe rename still open.
+- [x] 1. Audit: `ponytail-audit` + Codex review -> ranked list + verdicts in `STEPLOG.md`. Graphify indexes `main` (MCP `graphify`).
 - [x] 2. Fake goggles (UDP sender speaking `LiveProtocol`, plays an H.264 file, packet loss/stall/reorder options)
       + soak harness (memory, GC, fps, reconnects, logged per minute). Built before the fixes.
-- [x] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording + decoder auto-restart, each with a test or soak number.
-- [ ] 4. `--connect` (auto-connect + auto-reconnect), single instance (second launch focuses the window),
+- [x] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording, each with a test or soak number.
+- [ ] 4. `--connect` (auto-connect + auto-reconnect, also restarts after a decoder crash = finding #11), single instance (second launch focuses the window),
       superflash: menu key + exe path in its `config.ini`.
 - [ ] 5. Structure + UI (skills: `impeccable`, `stop-slop`, `run` for screenshots). Library: WPF + WPF-UI (decided). UI can only be run and screenshotted on
       the Windows PC, so UI work is done in small batches and the owner sends screenshots/feedback; logic stays in `Core` (testable on Linux).
@@ -84,8 +91,6 @@ Model: Opus for steps 1-3 and structure decisions; Sonnet for 0, 4, 6, 7 and mec
 Deleted: Multi, macOS, Linux, ARM64 ffmpeg, Mac scripts. Kept: `LICENSE` (keep the friend's copyright line),
 `THIRD_PARTY_NOTICES.md`, root `third_party/ffmpeg` + `scripts/build-windows-decoder.sh` (LGPL source/rebuild),
 `assets/AppIcon.{ico,png}`. Still open: `docs/` website (upstream marketing, owner decides).
-Port from Multi in step 3: catch the per-read cancellation in the UDP loop + `ThrowIfCancellationRequested` at the end;
-ffmpeg `-filter_threads 1` / `-threads 1` (measure first). Skip `IP_UNICAST_IF` (only for several goggles).
 
 ## Open decisions
 

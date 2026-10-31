@@ -1,0 +1,28 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      # Linux: system ffmpeg for decode/record tests. Windows: tests use Windows/third_party/ffmpeg-x64.
+      - name: Install ffmpeg
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+      - name: Test
+        run: dotnet test Windows/Goggles3.Core.Tests -c Release --logger "console;verbosity=minimal"
+      - name: Build WPF app
+        run: dotnet build Windows/Goggles3.Windows -c Release
