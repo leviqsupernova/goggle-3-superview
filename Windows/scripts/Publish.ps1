@@ -1,4 +1,4 @@
-param([ValidateSet('win-x64','win-arm64')][string]$Runtime='win-x64', [string]$Output)
+param([ValidateSet('win-x64')][string]$Runtime='win-x64', [string]$Output)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 if (!$Output) { $Output = Join-Path $project "outputs/Goggle-3-LiveView-Windows-$($Runtime -replace '^win-', '')" }
