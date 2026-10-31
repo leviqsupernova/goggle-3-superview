@@ -130,3 +130,17 @@ Not done in step 3, with verdict:
 | 1 WARNING | Start code or NAL header split by a chunk boundary: SPS never cached | **rejected**: needs goggles that send SPS only once (unconfirmed) *and* a boundary inside its 3-4 header bytes (~4 in 50 000 per boundary). Visible if it happens (recording error, not a silent bad file); marked `shortcut:` in `ParameterSets`. Revisit if a bench capture shows SPS-once + arbitrary unit boundaries. |
 
 Step 3 closed after 3 review rounds: 27/27 tests, Release build 0 warnings. WPF/PowerShell changes need the bench checks listed in CLAUDE.md.
+
+## Step 4: --connect, auto-reconnect, single instance (2026-11-01)
+
+| Change | Proof |
+|---|---|
+| `Core/AutoConnect`: find adapter -> run session -> retry every 2 s; Missing / NeedsSetup / errors become status text, never a dialog | 5 tests: waits then connects, restarts an ended session (#11), keeps trying after find/start errors, never starts while setup is needed, cancel stops a running session |
+| `AdapterLocator.Find` returns Missing / NeedsSetup / Ready | build only (Windows registry + cfgmgr32) |
+| `MainWindow`: Connect and `--connect` run the loop (setup dialog only after a click), Disconnect stops it; status changes logged once | build only, bench check |
+| `App`: single instance (mutex + 2 named events, created before the mutex); second launch shows the window, with `--connect` also connects if idle | build only, bench check |
+
+Codex (1 review + 1 follow-up): P2 startup race (second `--connect` during first instance start exited silently) **kept**, fixed by
+creating the events before the mutex; follow-up APPROVED.
+Bench checks: launch with `--connect` and no goggles (status text, no dialog); plug goggles in (connects); unplug/replug
+(reconnects); launch twice (one window, comes to front); kill ffmpeg in Task Manager (reconnects).

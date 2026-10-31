@@ -23,6 +23,7 @@ The whole suite is fast: run it before each commit. On Windows the tests use the
 recording tests only check "saved, non-empty" unless a full ffmpeg is on PATH).
 On Windows: `./Windows/scripts/Publish.ps1 -Runtime win-x64` -> `outputs/Goggle-3-LiveView-Windows-x64/`.
 Replay without goggles: `"Goggle 3 LiveView.exe" --replay C:\path\capture.h264` (bypasses UDP + protocol).
+Bench start: `"Goggle 3 LiveView.exe" --connect` (connect at launch, keep reconnecting, no dialogs; second launch focuses the window).
 Test clip (live-like: no B-frames, ~26 Mbps): `ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=60 -t 20 -c:v libx264 -preset veryfast -b:v 30M -maxrate 30M -bufsize 10M -g 60 -bf 0 -f h264 clip.h264`.
 Soak (Linux, fake goggles -> real Core pipeline, CSV per interval): `dotnet run -c Release --project Windows/Goggles3.Bench -- soak --file clip.h264 --minutes 480 --csv soak.csv [--record out.mp4]`.
 Faults: `--loss %`, `--reorder %`, `--stall every:for [--resubscribe]`, `--closed s`. Slow decoder: `kill -STOP/-CONT $(pgrep -x ffmpeg)`
@@ -40,7 +41,9 @@ Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: 
 - `FfmpegVideoSession`: UDP -> `H264Queue` (never blocks UDP; full = skip to next keyframe) -> `ffmpeg.exe` stdin;
   stdout = 1920x1080 BGRA -> `LatestFrame` triple buffer -> `Frame` event, UI calls `TakeLatestFrame()`.
   `Mp4Recorder`: second ffmpeg, copies the H.264 (`-c copy`) into a fragmented MP4 (playable even if killed).
-- `AdapterLocator`: finds the adapter via registry PnP id + cfgmgr32, runs `Prepare-Usb.ps1` elevated if needed.
+- `AdapterLocator`: finds the adapter via registry PnP id + cfgmgr32 (Missing / NeedsSetup / Ready), runs `Prepare-Usb.ps1`
+  elevated only after a Connect click. `AutoConnect` (Core): find -> session -> retry every 2 s, status text only.
+- `App`: single instance (`Local\Goggles3SuperView` mutex + `.show` / `.connect` events).
 - ffmpeg binaries in `Windows/third_party/ffmpeg-*` are LGPL builds: replacing one means updating
   `THIRD_PARTY_NOTICES.md`.
 
