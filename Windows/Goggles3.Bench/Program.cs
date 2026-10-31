@@ -5,7 +5,7 @@ using Goggles3.Core;
 
 // Developer bench tool, not shipped. Runs on Linux and Windows (Core only, no WPF).
 const string usage = """
-    Goggles3.Bench soak  --file <clip.h264> [--ffmpeg ffmpeg] [--minutes 1] [--interval 60] [--csv out.csv] [--record out.mp4]
+    Goggles3.Bench soak  --file <clip.h264> [--ffmpeg ffmpeg] [--minutes 1] [--interval 60] [--csv out.csv] [--record out.mp4] [--restart-every seconds]
                          [--loss %] [--reorder %] [--stall every:for] [--resubscribe] [--closed seconds]
                          [--fps 60] [--part-size 1400] [--seed 1]
     Goggles3.Bench check <ffmpeg> <clip.h264> <out.mp4>    replay + MP4 recording check (exit 0 = ok)
@@ -33,7 +33,8 @@ var options = new FakeOptions
 };
 using TextWriter output = named.TryGetValue("csv", out string? csv) ? new TeeWriter(File.CreateText(csv)) : new TeeWriter(null);
 return await Soak.RunAsync(named.GetValueOrDefault("ffmpeg", "ffmpeg"), File.ReadAllBytes(file),
-    TimeSpan.FromMinutes(Number("minutes", 1)), TimeSpan.FromSeconds(Number("interval", 60)), options, output, named.GetValueOrDefault("record"));
+    TimeSpan.FromMinutes(Number("minutes", 1)), TimeSpan.FromSeconds(Number("interval", 60)), options, output, named.GetValueOrDefault("record"),
+    named.ContainsKey("restart-every") ? TimeSpan.FromSeconds(Number("restart-every", 0)) : null);
 
 static async Task<int> Check(string ffmpeg, string clip, string mp4)
 {

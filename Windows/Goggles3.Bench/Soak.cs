@@ -13,9 +13,9 @@ namespace Goggles3.Bench;
 /// </summary>
 public static class Soak
 {
-    private const string Header = "t_s,frames,fps,max_gap_ms,fake_frames,fake_handshakes,dropped_pkts,acks,decoder_lines,ended,gen0,gen1,gen2,gc_pause_ms,alloc_mb,heap_mb,ws_mb,cpu_pct";
+    private const string Header = "t_s,frames,fps,max_gap_ms,fake_frames,fake_handshakes,dropped_pkts,acks,decoder_lines,ended,restarts,gen0,gen1,gen2,gc_pause_ms,alloc_mb,heap_mb,ws_mb,cpu_pct,threads,ffmpeg_procs";
 
-    public static async Task<int> RunAsync(string ffmpeg, byte[] h264, TimeSpan duration, TimeSpan interval, FakeOptions fakeOptions, TextWriter output, string? record = null)
+    public static async Task<int> RunAsync(string ffmpeg, byte[] h264, TimeSpan duration, TimeSpan interval, FakeOptions fakeOptions, TextWriter output, string? record = null, TimeSpan? restartEvery = null)
     {
         int port;
         using (var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0))) port = ((IPEndPoint)probe.Client.LocalEndPoint!).Port;
@@ -24,7 +24,7 @@ public static class Soak
         var fake = new FakeGoggles(fakeOptions);
         Task fakeTask = fake.RunAsync(h264, goggles, stop.Token);
 
-        long frames = 0, lastFrameTicks = Stopwatch.GetTimestamp(), maxGapTicks = 0, decoderLines = 0, ended = 0;
+        long frames = 0, lastFrameTicks = Stopwatch.GetTimestamp(), maxGapTicks = 0, decoderLines = 0, ended = 0, restarts = 0;
         var sessions = Task.Run(async () =>
         {
             while (!stop.IsCancellationRequested)
@@ -42,11 +42,14 @@ public static class Soak
                 session.Ended += reason => finished.TrySetResult(reason);
                 session.RecordingEnded += r => Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss} recording saved: {r.Chunks} chunks, {r.Dropped} dropped, error: {r.Error ?? "none"}");
                 session.Start(new UdpVideoReceiver(IPAddress.Loopback, goggles, 0));
-                if (record != null && Interlocked.Read(ref ended) == 0) session.StartRecording(record); // first session only
+                // One MP4 per session: out.mp4 -> out-1.mp4, out-2.mp4, ... (the app also ends a recording with its session)
+                long number = Interlocked.Read(ref ended) + Interlocked.Read(ref restarts) + 1;
+                if (record != null) session.StartRecording(Path.ChangeExtension(record, null) + $"-{number}.mp4");
                 try
                 {
-                    string reason = await finished.Task.WaitAsync(stop.Token);
-                    Interlocked.Increment(ref ended);
+                    string reason;
+                    try { reason = await finished.Task.WaitAsync(restartEvery ?? Timeout.InfiniteTimeSpan, stop.Token); Interlocked.Increment(ref ended); }
+                    catch (TimeoutException) { reason = "forced restart (--restart-every)"; Interlocked.Increment(ref restarts); }
                     Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss} session ended: {reason}");
                     await Task.Delay(1000, stop.Token);
                 }
@@ -76,11 +79,12 @@ public static class Soak
                 F(now, 0), n.ToString(CultureInfo.InvariantCulture), F(n / span, 1), F(gapMs, 0),
                 (f.Frames - lastFake.Frames).ToString(CultureInfo.InvariantCulture), f.Handshakes.ToString(CultureInfo.InvariantCulture),
                 (f.Dropped - lastFake.Dropped).ToString(CultureInfo.InvariantCulture), (f.Acks - lastFake.Acks).ToString(CultureInfo.InvariantCulture),
-                Interlocked.Exchange(ref decoderLines, 0).ToString(CultureInfo.InvariantCulture), Interlocked.Read(ref ended).ToString(CultureInfo.InvariantCulture),
+                Interlocked.Exchange(ref decoderLines, 0).ToString(CultureInfo.InvariantCulture), Interlocked.Read(ref ended).ToString(CultureInfo.InvariantCulture), Interlocked.Read(ref restarts).ToString(CultureInfo.InvariantCulture),
                 (GC.CollectionCount(0) - g0).ToString(CultureInfo.InvariantCulture), (GC.CollectionCount(1) - g1).ToString(CultureInfo.InvariantCulture),
                 (GC.CollectionCount(2) - g2).ToString(CultureInfo.InvariantCulture), F((GC.GetTotalPauseDuration() - pause).TotalMilliseconds, 0),
                 F((GC.GetTotalAllocatedBytes() - allocated) / 1048576.0, 0), F(GC.GetTotalMemory(false) / 1048576.0, 0),
-                F(self.WorkingSet64 / 1048576.0, 0), F((self.TotalProcessorTime - cpu).TotalSeconds / span * 100, 0)]));
+                F(self.WorkingSet64 / 1048576.0, 0), F((self.TotalProcessorTime - cpu).TotalSeconds / span * 100, 0),
+                self.Threads.Count.ToString(CultureInfo.InvariantCulture), CountFfmpeg().ToString(CultureInfo.InvariantCulture)]));
             output.Flush();
             lastFake = f; last = now;
             g0 = GC.CollectionCount(0); g1 = GC.CollectionCount(1); g2 = GC.CollectionCount(2);
@@ -89,6 +93,14 @@ public static class Soak
         await sessions;
         try { await fakeTask; } catch (OperationCanceledException) { }
         return 0;
+    }
+
+    // All ffmpeg processes on the machine: should stay at 1 (decoder) or 2 (+ recorder); more = orphans.
+    private static int CountFfmpeg()
+    {
+        Process[] all = Process.GetProcessesByName("ffmpeg");
+        foreach (Process p in all) p.Dispose();
+        return all.Length;
     }
 
     private static string F(double value, int digits) => value.ToString("F" + digits, CultureInfo.InvariantCulture);
