@@ -27,6 +27,10 @@ try {
     }
     $addresses = @(Get-NetIPAddress -InterfaceIndex $index -AddressFamily IPv4 -ErrorAction SilentlyContinue)
     if (@($addresses | Where-Object { $_.IPAddress -eq '192.168.60.1' -and $_.PrefixLength -eq 24 }).Count -gt 0) { exit 0 }
+    # Same IP with another prefix: refuse before writing a backup, or -Restore would later delete the user's own address.
+    if (@($addresses | Where-Object { $_.IPAddress -eq '192.168.60.1' -and $_.PrefixLength -ne 24 }).Count -gt 0) {
+        throw 'The goggles adapter already has 192.168.60.1 with another prefix. It has not been changed; review it manually.'
+    }
     if (@($addresses | Where-Object { $_.IPAddress -ne '192.168.60.1' -and $_.IPAddress -notlike '169.254.*' }).Count -gt 0) {
         throw 'The goggles adapter already has a different static address. It has not been changed; review it manually.'
     }
