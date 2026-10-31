@@ -12,6 +12,7 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
     private readonly object recordingLock = new();
     private Mp4Recorder? recorder;
     private Task saving = Task.CompletedTask;
+    private readonly ParameterSets headers = new();
     /// <summary>A new frame is ready: get it with <see cref="TakeLatestFrame"/> (any thread).</summary>
     public event Action? Frame;
     private readonly LatestFrame latest = new(FrameSize);
@@ -36,12 +37,22 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
             var queue = new H264Queue(240, text => Log?.Invoke(text), startAtKeyframe: true);
             Task receiving = Task.Run(async () =>
             {
-                try { await receiver.RunAsync((data, _) => { queue.Add(data); return ValueTask.CompletedTask; }, token).ConfigureAwait(false); }
+                // The recorder gets every chunk before the decoder queue: a stalled decoder must not cut the recording.
+                try { await receiver.RunAsync((data, _) => { Record(data); queue.Add(data); return ValueTask.CompletedTask; }, token).ConfigureAwait(false); }
                 finally { queue.Complete(); }
             }, CancellationToken.None);
-            await foreach (byte[] chunk in queue.ReadAllAsync(token).ConfigureAwait(false))
-                await feed(chunk, token).ConfigureAwait(false);
-            await receiving.ConfigureAwait(false); // surfaces a receiver failure
+            try
+            {
+                await foreach (byte[] chunk in queue.ReadAllAsync(token).ConfigureAwait(false))
+                    await feed(chunk, token).ConfigureAwait(false);
+            }
+            finally
+            {
+                // Also on a failed feed: the session must not end while the receiver still holds the UDP port.
+                // A receiver failure surfaces here; the worker cancels the token when the decoder ends.
+                try { await receiving.ConfigureAwait(false); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+            }
         });
     }
 
@@ -54,11 +65,17 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
             var buffer = new byte[65536]; // new array per chunk: the recorder keeps a reference
             int read = await file.ReadAsync(buffer, token).ConfigureAwait(false);
             if (read == 0) break;
+            Record(read == buffer.Length ? buffer : buffer[..read]);
             await feed(read == buffer.Length ? buffer : buffer[..read], token).ConfigureAwait(false);
         }
     }, paced: true);
 
-    /// <summary>The source hands each H.264 chunk to the feed: recorder (copy) and decoder stdin.</summary>
+    private void Record(byte[] chunk)
+    {
+        lock (recordingLock) { headers.Observe(chunk); recorder?.Append(chunk); }
+    }
+
+    /// <summary>The source hands each H.264 chunk to the feed (decoder stdin) and to <see cref="Record"/>.</summary>
     private void Begin(Func<Func<byte[], CancellationToken, ValueTask>, CancellationToken, Task> source, bool paced = false)
     {
         if (worker != null) throw new InvalidOperationException("The session is already running.");
@@ -74,12 +91,7 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
             var writer = Task.Run(async () =>
             {
                 Stream stdin = active.StandardInput.BaseStream;
-                async ValueTask Feed(byte[] chunk, CancellationToken token)
-                {
-                    lock (recordingLock) recorder?.Append(chunk);
-                    await stdin.WriteAsync(chunk, token).ConfigureAwait(false);
-                }
-                try { await source(Feed, lifetime.Token).ConfigureAwait(false); }
+                try { await source((chunk, token) => stdin.WriteAsync(chunk, token), lifetime.Token).ConfigureAwait(false); }
                 catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
                 catch (Exception error) { sourceFailure = error; Log?.Invoke("USB reception: " + error.Message); }
                 finally { active.StandardInput.Close(); }
@@ -138,7 +150,7 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
                 // A recorder that failed on its own (disk full) must not block the next recording.
                 lock (recordingLock) if (recorder == created) recorder = null;
                 RecordingEnded?.Invoke(result);
-            });
+            }, headers);
             recorder = created;
         }
     }
@@ -197,13 +209,18 @@ internal sealed class Mp4Recorder
     private readonly CancellationTokenSource shutdown = new();
     private bool started;
 
-    public Mp4Recorder(string executable, string path, int fps, Action<RecordingResult> finished)
+    private readonly ParameterSets headers;
+
+    public Mp4Recorder(string executable, string path, int fps, Action<RecordingResult> finished, ParameterSets headers)
     {
+        this.headers = headers;
         // shortcut: raw H.264 has no timestamps, so frames get a constant -framerate; if the goggles stream
         // another rate the file plays at the wrong speed. Check one bench recording's length against a clock.
         process = FfmpegVideoSession.CreateProcess(executable, ["-hide_banner","-loglevel","error",
             "-f","h264","-framerate",fps.ToString(System.Globalization.CultureInfo.InvariantCulture),"-i","pipe:0",
-            "-an","-c:v","copy","-movflags","+frag_keyframe+empty_moov+default_base_moof","-f","mp4",path]);
+            "-an","-c:v","copy","-movflags","+frag_keyframe+empty_moov+default_base_moof",
+            // 1 s fragments also without keyframes: goggles with rare IDRs would otherwise keep the whole file in memory.
+            "-frag_duration","1000000","-f","mp4",path]);
         process.Start();
         worker = Task.Run(async () =>
         {
@@ -239,7 +256,7 @@ internal sealed class Mp4Recorder
         {
             int key = H264Queue.IndexOfKeyframe(chunk);
             if (key < 0) return; // an MP4 must start on a keyframe
-            chunk = key == 0 ? chunk : chunk[key..];
+            chunk = headers.Complete(key == 0 ? chunk : chunk[key..]);
             started = true;
         }
         pending.Add(chunk);

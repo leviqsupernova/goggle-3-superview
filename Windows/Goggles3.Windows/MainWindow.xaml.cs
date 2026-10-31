@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     private readonly Queue<string> log = [];
     // Any thread may log; the 1 s timer moves lines to the UI queue and the diagnostics file (no per-line UI work).
     private readonly ConcurrentQueue<string> incoming = new();
+    private int writingLog;
+    private bool logDirty;
     private string? currentRecordingPath;
 
     public MainWindow()
@@ -136,7 +138,11 @@ public partial class MainWindow : Window
         catch (Exception error) { Status.Text = error.Message; AddLog(error.Message); }
     }
 
-    private async Task DisconnectAsync()
+    // One disconnect at a time: a Close during a running disconnect (still saving) must wait for that one.
+    private Task disconnecting = Task.CompletedTask;
+    private Task DisconnectAsync() => disconnecting = disconnecting.IsCompleted ? DisconnectCoreAsync() : disconnecting;
+
+    private async Task DisconnectCoreAsync()
     {
         generation++; FfmpegVideoSession? active = session; session = null;
         if (recording) { recording = false; saving = true; RecordLabel.Text = "Saving…"; }
@@ -240,20 +246,27 @@ public partial class MainWindow : Window
 
     private void FlushLog()
     {
-        if (incoming.IsEmpty) return;
         while (incoming.TryDequeue(out string? line))
         {
             if (log.Count >= 100) log.Dequeue();
-            log.Enqueue(line);
+            log.Enqueue(line); logDirty = true;
         }
-        try
+        // File write off the UI thread; if the last write is still running, a later tick writes the newer lines.
+        if (!logDirty || Interlocked.CompareExchange(ref writingLog, 1, 0) != 0) return;
+        logDirty = false;
+        string[] lines = [.. log];
+        _ = Task.Run(() =>
         {
-            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Goggle 3 LiveView");
-            Directory.CreateDirectory(directory);
-            File.WriteAllLines(Path.Combine(directory, "diagnostic.txt"), log);
-        }
-        catch (IOException) { /* Diagnostics must not interrupt the viewer. */ }
-        catch (UnauthorizedAccessException) { }
+            try
+            {
+                string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Goggle 3 LiveView");
+                Directory.CreateDirectory(directory);
+                File.WriteAllLines(Path.Combine(directory, "diagnostic.txt"), lines);
+            }
+            catch (IOException) { /* Diagnostics must not interrupt the viewer. */ }
+            catch (UnauthorizedAccessException) { }
+            finally { Interlocked.Exchange(ref writingLog, 0); }
+        });
     }
     private void TutorialClick(object sender, RoutedEventArgs e) => new TutorialWindow { Owner = this }.ShowDialog();
 

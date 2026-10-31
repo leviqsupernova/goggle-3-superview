@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Goggles3.Bench;
 using Goggles3.Core;
 using Xunit;
 
@@ -24,11 +25,19 @@ public sealed class RecordingTests
         }
     }
 
-    private static async Task<(string Codec, int Packets)> ProbeAsync(string mp4)
+    /// <summary>
+    /// Codec and packet count via a full ffmpeg on PATH. The bundled Windows build cannot read MP4
+    /// (no mov demuxer, no framecrc muxer): without a system ffmpeg only "saved, non-empty" is checked.
+    /// </summary>
+    private static async Task<(string Codec, int Packets)?> ProbeAsync(string mp4)
     {
-        var info = new ProcessStartInfo(Ffmpeg) { RedirectStandardOutput = true, RedirectStandardError = true };
+        Assert.True(new FileInfo(mp4).Length > 0, "Recording is empty.");
+        var info = new ProcessStartInfo("ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in new[] { "-hide_banner", "-i", mp4, "-map", "0:v", "-c", "copy", "-f", "framecrc", "-" }) info.ArgumentList.Add(a);
-        using var process = Process.Start(info)!;
+        Process process;
+        try { process = Process.Start(info)!; }
+        catch (System.ComponentModel.Win32Exception) when (OperatingSystem.IsWindows()) { return null; }
+        using var _ = process;
         Task<string> errors = process.StandardError.ReadToEndAsync();
         string output = await process.StandardOutput.ReadToEndAsync();
         await process.WaitForExitAsync();
@@ -53,9 +62,41 @@ public sealed class RecordingTests
                 RecordingResult result = await ended.Task.WaitAsync(TimeSpan.FromSeconds(20));
                 Assert.Null(result.Error);
             }
-            (string codec, int packets) = await ProbeAsync(mp4);
-            Assert.Equal("h264", codec);
-            Assert.Equal(120, packets);
+            if (await ProbeAsync(mp4) is (string codec, int packets))
+            {
+                Assert.Equal("h264", codec);
+                Assert.Equal(120, packets);
+            }
+        }
+        finally { File.Delete(mp4); }
+    }
+
+    [Fact] public async Task Recording_StartingAtABareIdr_GetsTheCachedSpsAndPps()
+    {
+        // Goggles that send SPS/PPS once: a recording started later begins at an IDR without them.
+        List<byte[]> units = FakeGoggles.SplitAccessUnits(File.ReadAllBytes(Clip)).Select(u => u.ToArray()).ToList();
+        static byte[] WithoutHeaders(byte[] unit) // keep from the IDR slice on: drops the SPS/PPS in front of it
+        {
+            for (int i = 0; i + 3 < unit.Length; i++)
+                if (unit[i] == 0 && unit[i + 1] == 0 && unit[i + 2] == 1 && (unit[i + 3] & 0x1f) == 5) return unit[i..];
+            return unit;
+        }
+        var headers = new ParameterSets();
+        headers.Observe(units[0]); // the first GOP's SPS/PPS, seen live before Record was clicked
+        string mp4 = TempMp4();
+        try
+        {
+            var ended = new TaskCompletionSource<RecordingResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var recorder = new Mp4Recorder(Ffmpeg, mp4, 60, result => ended.TrySetResult(result), headers);
+            foreach (byte[] unit in units.Skip(30)) recorder.Append(WithoutHeaders(unit)); // starts at the 2nd IDR
+            await recorder.FinishAsync();
+            RecordingResult result = await ended.Task;
+            Assert.Null(result.Error);
+            if (await ProbeAsync(mp4) is (string codec, int packets))
+            {
+                Assert.Equal("h264", codec);
+                Assert.Equal(90, packets);
+            }
         }
         finally { File.Delete(mp4); }
     }
