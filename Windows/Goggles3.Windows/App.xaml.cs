@@ -21,17 +21,18 @@ public partial class App : Application
     {
         base.OnStartup(e);
         bool connect = e.Args.Contains("--connect");
+        // Events first, mutex second: whoever finds the mutex taken can always signal, and the signal
+        // stays set until the running instance's listener (started below) takes it.
+        var show = new EventWaitHandle(false, EventResetMode.AutoReset, Name + ".show");
+        var connectAgain = new EventWaitHandle(false, EventResetMode.AutoReset, Name + ".connect");
         single = new Mutex(true, Name, out bool first);
         if (!first)
         {
             AllowSetForegroundWindow(-1); // ASFW_ANY: the running instance may take the foreground
-            if (EventWaitHandle.TryOpenExisting(Name + (connect ? ".connect" : ".show"), out EventWaitHandle? wake))
-                using (wake) wake.Set();
+            (connect ? connectAgain : show).Set();
             Shutdown();
             return;
         }
-        var show = new EventWaitHandle(false, EventResetMode.AutoReset, Name + ".show");
-        var connectAgain = new EventWaitHandle(false, EventResetMode.AutoReset, Name + ".connect");
         var window = new MainWindow();
         MainWindow = window;
         window.Show();
