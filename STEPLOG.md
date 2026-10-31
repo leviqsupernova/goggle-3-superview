@@ -72,3 +72,61 @@ Baseline before fixes (Arch, 16 cores, ffmpeg 9.0.2, 20 s testsrc2 clip 1080p60 
 | `--loss 0.5` | ~42 fps (~30 % frames lost; one lost part drops the whole unit), gaps up to 450 ms, ffmpeg logs nothing, ACK still sent for units with missing parts | new note: ACK on last part only, decoder silent |
 | `--reorder 1` | 60 fps, max gap 35 ms, no decoder errors | #12: no visible effect at frame-count level; stays "plausible", needs a picture check to judge |
 | slow decoder (`taskset -c 0`) | still 60 fps on this CPU | #6 needs the pause test, not just one core |
+
+## Step 3: Stability fixes (2026-10-31)
+
+Each fix: failing test or soak number first, then the fix. Soak = `Goggles3.Bench soak`, same 20 s 1080p60 ~26 Mbps clip as step 2.
+
+| # | Fix | Proof (before -> after) |
+|---|---|---|
+| 1 | Receiver catches `ConnectionReset`/`ConnectionRefused` on receive and send; handshake continues | test `Receiver_KeepsHandshaking_WhenGogglesPortIsClosedAtFirst`: red (`SocketException: Connection refused`) -> green |
+| 2 | No video for 2 s (`ResubscribeAfter`): reset `LiveProtocol` cache, handshake again | test `Receiver_SubscribesAgain_...`: red with the re-subscribe disabled (checked by patching it out), green with it |
+| 16 | `ThrowIfCancellationRequested` after the receive loop | existing cancel test now deterministic |
+| 6 | `H264Queue` (240 chunks) between UDP and ffmpeg stdin; full -> drop to next SPS/IDR, give up waiting after 240 drops | soak, 3 x 1 s decoder pause: kernel UDP drops 1587 -> 0, ACKs 575/600 -> 600/600, no frames lost; 5 s pause: one resync, session survives. 3 queue unit tests |
+| 10 | Recorder copies the original H.264 (`-c copy`, `-framerate 60`) from the first keyframe | test `Recording_CopiesTheOriginalH264_EveryFrame`: red (`mpeg4`) -> green (h264, 120/120 frames) |
+| 3 | Fragmented MP4 (`+frag_keyframe+empty_moov+default_base_moof`), no `+faststart` | `kill -9` of the recorder mid-file: plain MP4 "moov atom not found" (0 frames) vs fragmented 541/545 frames readable |
+| 4 | Recorder clears itself when it ends on its own | test `StartRecording_Works_AfterTheEncoderFailedMidSession`: red ("already in progress") -> green |
+| 5 | `StopRecordingAsync` returns the running save, `DisposeAsync` awaits it; window cancels every Close until cleanup is done; refuse Record while saving (Multi port) | no deterministic failing test (race); fragmented MP4 limits the damage anyway. UI part: bench check |
+| 7 | `LatestFrame` triple buffer, `Frame` event + `TakeLatestFrame()` | soak per 15 s: allocated 7344 -> 233 MB, Gen2 100 -> 0, GC pause 70 -> 5 ms, app CPU 52 -> 40 %, working set 216 -> 160 MB. 2 unit tests |
+| 8 | Log lines go to a `ConcurrentQueue`; the 1 s timer moves them to the list + file | WPF: build only, bench check |
+| 9 | Stop stays enabled while recording when video drops | WPF: build only, bench check |
+| 14 | `Prepare-Usb.ps1` refuses 192.168.60.1 with another prefix before writing the backup | no pwsh/NetTCPIP on Linux: read-checked only, bench check |
+| new | Decoder queue starts at a keyframe (`startAtKeyframe`) | soak, `kill -9` ffmpeg + session restart: decoder log lines 208 -> 4 |
+
+Not done in step 3, with verdict:
+- #11 decoder auto-restart: **moved to step 4**. Soak shows a full session restart after `kill -9` of ffmpeg recovers 60 fps within ~1.2 s,
+  so the step 4 auto-reconnect (restart on `Ended`) covers it; no second restart path inside the session.
+- #12 out-of-order units: unchanged, still plausible only (no effect at frame-count level, see step 2).
+- #13 BGRA pipe: measured ffmpeg ~70 % of one core (decode + scale + BGRA) on this box; no change until the bench PC shows lag.
+- #15 tentative address after setup: step 4 retry covers it.
+- Multi port `-threads 1` / `-filter_threads 1`: **rejected for now**: no decoder lag measured; revisit with bench PC numbers.
+- Recording timestamps: constant 60 fps (`shortcut:` comment in `Mp4Recorder`). Bench check: compare one recording's length to a clock.
+
+### Step 3 Codex review, round 1 (verdict: REVISE) and Claude's verdicts
+
+| Codex | Point | Verdict + proof |
+|---|---|---|
+| 1 CRITICAL | `frag_keyframe` without IDRs buffers the whole recording in memory | **kept**: one-IDR stream, 3 MB in: 28 bytes on disk -> 2.6 MB with `-frag_duration 1000000` |
+| 2 CRITICAL | Disconnect, then Close while saving: second `DisconnectAsync` returns at once | **kept**: one shared disconnect task (WPF, bench check) |
+| 3 WARNING | Recording test reads the MP4 with the bundled Windows ffmpeg | **kept**, worse than reported: the bundled build has no mov demuxer and no framecrc (`strings`: demuxers h264+rawvideo only). Probe uses a system ffmpeg from PATH; without one only "saved, non-empty" is checked |
+| 4 WARNING | Goggles that send SPS/PPS once: a later recording starts at a bare IDR and fails | **kept**: `ParameterSets` caches the newest SPS/PPS, recorder prepends them. Test red without the cache ("Could not write header") -> green, 90/90 frames |
+| 5 WARNING | Keyframe wait gives up after `capacity` drops (startup and recorder) | **rejected**: deliberate, so goggles with rare or no IDRs (intra refresh) never freeze forever; recorder drops are counted in `Dropped` |
+| 6 WARNING | Recorder fed after the decoder queue: a decoder stall cuts the recording | **kept**: recorder fed in the receiver callback. Soak `--record`, decoder paused 5 s: decoder resynced, MP4 has 1796/1796 frames, 0 dropped |
+| 7 WARNING | Failed feed returns before the receiver ends; reconnect may hit the still-bound UDP port | **kept**: `finally` awaits the receiver |
+| 8 WARNING | `FlushLog` still writes the file on the UI thread | **kept**: write in `Task.Run`, one at a time, dirty flag (WPF, bench check) |
+
+### Step 3 Codex review, round 2 (verdict: REVISE) and Claude's verdicts
+
+| Codex | Point | Verdict + proof |
+|---|---|---|
+| 1 WARNING | SPS repeated but PPS sent once: `Complete` saw the SPS and skipped the cached PPS | **kept**: SPS and PPS checked separately; a missing PPS brings the cached SPS in front (ffmpeg needs SPS before PPS: SPS,PPS,SPS,IDR decodes 90/90 frames). Test red -> green |
+| 2 WARNING | SPS split across two chunks cached truncated | **kept**: unfinished SPS/PPS carried to the next chunk (`shortcut:` a split start code is not handled). Test red -> green |
+| 3 WARNING | Close during a diagnostics write loses the last lines | **kept**: close awaits the running write, then writes the rest (WPF, bench check) |
+
+### Step 3 Codex review, round 3 (verdict: REVISE) and Claude's verdict
+
+| Codex | Point | Verdict |
+|---|---|---|
+| 1 WARNING | Start code or NAL header split by a chunk boundary: SPS never cached | **rejected**: needs goggles that send SPS only once (unconfirmed) *and* a boundary inside its 3-4 header bytes (~4 in 50 000 per boundary). Visible if it happens (recording error, not a silent bad file); marked `shortcut:` in `ParameterSets`. Revisit if a bench capture shows SPS-once + arbitrary unit boundaries. |
+
+Step 3 closed after 3 review rounds: 27/27 tests, Release build 0 warnings. WPF/PowerShell changes need the bench checks listed in CLAUDE.md.

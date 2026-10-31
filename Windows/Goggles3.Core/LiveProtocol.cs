@@ -19,6 +19,9 @@ public sealed class LiveProtocol
     public LiveProtocol(ushort? sessionId = null) => session = sessionId ?? (ushort)RandomNumberGenerator.GetInt32(65536);
     public long VideoBytes { get; private set; }
 
+    /// <summary>Forget cached units: a restarted stream may reuse sequence numbers.</summary>
+    public void Reset() { units.Clear(); order.Clear(); }
+
     public byte[] CreateHandshake()
     {
         byte[] bytes = [

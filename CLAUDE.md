@@ -21,7 +21,7 @@ dotnet build Windows/Goggles3.Windows -c Release                # WPF builds on 
 On Windows: `./Windows/scripts/Publish.ps1 -Runtime win-x64` -> `outputs/Goggle-3-LiveView-Windows-x64/`.
 Replay without goggles: `"Goggle 3 LiveView.exe" --replay C:\path\capture.h264` (bypasses UDP + protocol).
 Test clip (live-like: no B-frames, ~26 Mbps): `ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=60 -t 20 -c:v libx264 -preset veryfast -b:v 30M -maxrate 30M -bufsize 10M -g 60 -bf 0 -f h264 clip.h264`.
-Soak (Linux, fake goggles -> real Core pipeline, CSV per interval): `dotnet run -c Release --project Windows/Goggles3.Bench -- soak --file clip.h264 --minutes 480 --csv soak.csv`.
+Soak (Linux, fake goggles -> real Core pipeline, CSV per interval): `dotnet run -c Release --project Windows/Goggles3.Bench -- soak --file clip.h264 --minutes 480 --csv soak.csv [--record out.mp4]`.
 Faults: `--loss %`, `--reorder %`, `--stall every:for [--resubscribe]`, `--closed s`. Slow decoder: `kill -STOP/-CONT $(pgrep -x ffmpeg)`
 (never `pkill -f`: it matches the calling shell). Socket drops: `Udp` `RcvbufErrors` in `/proc/net/snmp`.
 Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: fix warnings, never suppress them.
@@ -31,21 +31,22 @@ Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: 
 - Goggles 3 = USB RNDIS network adapter, VID `2CA3` PID `0020`. `Prepare-Usb.ps1` (admin, once) adds `192.168.60.1/24`
   to that adapter only. Never WinUSB/Zadig.
 - `UdpVideoReceiver`: local `192.168.60.1:12346` <-> goggles `192.168.60.2:9003`. Handshake once per second until
-  video arrives, ACK after the last part of each unit.
+  video arrives, again after 2 s without video; ACK after the last part of each unit. ICMP unreachable is ignored.
 - `LiveProtocol`: header (length, session id, XOR byte 7), type 2 = video part, reassembles units (max 32 cached) into
   H.264 Annex-B chunks.
-- `FfmpegVideoSession`: H.264 -> `ffmpeg.exe` stdin; stdout = 1920x1080 BGRA raw frames -> WPF `WriteableBitmap`.
-  `Mp4Recorder`: second ffmpeg, re-encodes BGRA to MPEG-4.
+- `FfmpegVideoSession`: UDP -> `H264Queue` (never blocks UDP; full = skip to next keyframe) -> `ffmpeg.exe` stdin;
+  stdout = 1920x1080 BGRA -> `LatestFrame` triple buffer -> `Frame` event, UI calls `TakeLatestFrame()`.
+  `Mp4Recorder`: second ffmpeg, copies the H.264 (`-c copy`) into a fragmented MP4 (playable even if killed).
 - `AdapterLocator`: finds the adapter via registry PnP id + cfgmgr32, runs `Prepare-Usb.ps1` elevated if needed.
 - ffmpeg binaries in `Windows/third_party/ffmpeg-*` are LGPL builds: replacing one means updating
   `THIRD_PARTY_NOTICES.md`.
 
-## Audit result (step 1, details + verdicts in `STEPLOG.md`)
+## Audit result (step 1) and fixes (step 3), details in `STEPLOG.md`
 
-Must fix in step 3: (1) `WSAECONNRESET` ends the session, (2) no re-handshake after the stream stops,
-(3) `+faststart` + 30 s kill corrupts long recordings, (4) failed recorder blocks new recordings,
-(5) closing while saving truncates the MP4, (6) UDP loop blocked by ffmpeg stdin. Then: 8 MB/frame GC, `AddLog` on UI
-thread, Stop disabled when video drops, H.264 remux recording, decoder auto-restart, `Prepare-Usb.ps1` restore guard.
+Fixed + measured on Linux: ICMP unreachable, re-handshake, decoder backpressure queue, H.264 copy recording in fragmented
+MP4 (+ cached SPS/PPS), recorder lifecycle, triple-buffered frames, decoder starts at keyframe. Fixed, bench check pending
+(WPF/PowerShell): close waits for save, Stop without video, logs off UI thread, `Prepare-Usb.ps1` prefix guard.
+Open: #11 decoder restart -> step 4 auto-reconnect; #12/#13 plausible only; constant 60 fps recording timestamps.
 Each fix needs a test or soak measurement that shows the problem first. "Fixed" means measured, not "looks right".
 
 ## Working rules
@@ -69,7 +70,7 @@ Each fix needs a test or soak measurement that shows the problem first. "Fixed" 
 - [x] 1. Audit: `ponytail-audit` + Codex review -> ranked list + verdicts in `STEPLOG.md`. Graphify: repo not indexed (owner adds it).
 - [x] 2. Fake goggles (UDP sender speaking `LiveProtocol`, plays an H.264 file, packet loss/stall/reorder options)
       + soak harness (memory, GC, fps, reconnects, logged per minute). Built before the fixes.
-- [ ] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording + decoder auto-restart, each with a test or soak number.
+- [x] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording + decoder auto-restart, each with a test or soak number.
 - [ ] 4. `--connect` (auto-connect + auto-reconnect), single instance (second launch focuses the window),
       superflash: menu key + exe path in its `config.ini`.
 - [ ] 5. Structure + UI (skills: `impeccable`, `stop-slop`, `run` for screenshots). Library: WPF + WPF-UI (decided). UI can only be run and screenshotted on
@@ -105,3 +106,6 @@ never block on a dialog when the goggles are absent (status text instead), refus
 
 - 2026-10-31 step 2 baseline (Linux, fake goggles, 1080p60 26 Mbps, before fixes): clean = 60 fps, ~490 MB/s allocated,
   ~6.7 Gen2 GC/s, 4.7 ms GC pause/s. Findings #1, #2, #6 reproduced; 0.5 % packet loss = ~30 % frames lost. See `STEPLOG.md`.
+- 2026-10-31 step 3 (Linux soak): decoder pauses -> 0 kernel UDP drops (was 1587); 15 MB/s allocated (was 490), 0 Gen2/s;
+  recorder killed mid-file -> still playable. Bench checks pending: close while saving, Stop without video, Prepare-Usb guard,
+  recording length vs clock (constant 60 fps timestamps).

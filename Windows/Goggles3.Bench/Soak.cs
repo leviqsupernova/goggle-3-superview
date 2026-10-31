@@ -15,7 +15,7 @@ public static class Soak
 {
     private const string Header = "t_s,frames,fps,max_gap_ms,fake_frames,fake_handshakes,dropped_pkts,acks,decoder_lines,ended,gen0,gen1,gen2,gc_pause_ms,alloc_mb,heap_mb,ws_mb,cpu_pct";
 
-    public static async Task<int> RunAsync(string ffmpeg, byte[] h264, TimeSpan duration, TimeSpan interval, FakeOptions fakeOptions, TextWriter output)
+    public static async Task<int> RunAsync(string ffmpeg, byte[] h264, TimeSpan duration, TimeSpan interval, FakeOptions fakeOptions, TextWriter output, string? record = null)
     {
         int port;
         using (var probe = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0))) port = ((IPEndPoint)probe.Client.LocalEndPoint!).Port;
@@ -31,7 +31,7 @@ public static class Soak
             {
                 var finished = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 await using var session = new FfmpegVideoSession(ffmpeg);
-                session.Frame += _ =>
+                session.Frame += () =>
                 {
                     long now = Stopwatch.GetTimestamp();
                     long gap = now - Interlocked.Exchange(ref lastFrameTicks, now);
@@ -40,7 +40,9 @@ public static class Soak
                 };
                 session.Log += line => { Interlocked.Increment(ref decoderLines); Console.Error.WriteLine("decoder: " + line); };
                 session.Ended += reason => finished.TrySetResult(reason);
+                session.RecordingEnded += r => Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss} recording saved: {r.Chunks} chunks, {r.Dropped} dropped, error: {r.Error ?? "none"}");
                 session.Start(new UdpVideoReceiver(IPAddress.Loopback, goggles, 0));
+                if (record != null && Interlocked.Read(ref ended) == 0) session.StartRecording(record); // first session only
                 try
                 {
                     string reason = await finished.Task.WaitAsync(stop.Token);

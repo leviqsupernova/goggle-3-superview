@@ -93,6 +93,7 @@ public sealed class FakeGoggles(FakeOptions options)
             {
                 await Task.Delay(10, token).ConfigureAwait(false);
                 start = clock.Elapsed.TotalSeconds; frame = 0;
+                nextStall = start + options.StallEvery; // count stream time, not time spent waiting for the viewer
                 continue;
             }
             if (options.StallEvery > 0 && clock.Elapsed.TotalSeconds >= nextStall)
