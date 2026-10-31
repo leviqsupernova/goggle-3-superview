@@ -122,3 +122,11 @@ Not done in step 3, with verdict:
 | 1 WARNING | SPS repeated but PPS sent once: `Complete` saw the SPS and skipped the cached PPS | **kept**: SPS and PPS checked separately; a missing PPS brings the cached SPS in front (ffmpeg needs SPS before PPS: SPS,PPS,SPS,IDR decodes 90/90 frames). Test red -> green |
 | 2 WARNING | SPS split across two chunks cached truncated | **kept**: unfinished SPS/PPS carried to the next chunk (`shortcut:` a split start code is not handled). Test red -> green |
 | 3 WARNING | Close during a diagnostics write loses the last lines | **kept**: close awaits the running write, then writes the rest (WPF, bench check) |
+
+### Step 3 Codex review, round 3 (verdict: REVISE) and Claude's verdict
+
+| Codex | Point | Verdict |
+|---|---|---|
+| 1 WARNING | Start code or NAL header split by a chunk boundary: SPS never cached | **rejected**: needs goggles that send SPS only once (unconfirmed) *and* a boundary inside its 3-4 header bytes (~4 in 50 000 per boundary). Visible if it happens (recording error, not a silent bad file); marked `shortcut:` in `ParameterSets`. Revisit if a bench capture shows SPS-once + arbitrary unit boundaries. |
+
+Step 3 closed after 3 review rounds: 27/27 tests, Release build 0 warnings. WPF/PowerShell changes need the bench checks listed in CLAUDE.md.
