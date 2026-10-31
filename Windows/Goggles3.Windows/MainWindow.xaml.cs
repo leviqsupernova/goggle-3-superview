@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -21,12 +22,14 @@ public partial class MainWindow : Window
     private readonly WriteableBitmap bitmap = new(1920,1080,96,96,PixelFormats.Bgr32,null);
     private double lastFrame, rate;
     private int frames, pendingUi;
-    private bool recording, saving, busy, closing, fullscreen, replay;
+    private bool recording, saving, busy, closing, closed, fullscreen, replay;
     private long generation;
     private Rect savedBounds;
     private WindowState savedState;
     private bool savedTopmost;
     private readonly Queue<string> log = [];
+    // Any thread may log; the 1 s timer moves lines to the UI queue and the diagnostics file (no per-line UI work).
+    private readonly ConcurrentQueue<string> incoming = new();
     private string? currentRecordingPath;
 
     public MainWindow()
@@ -46,7 +49,7 @@ public partial class MainWindow : Window
         };
         var diagnosticMenu = new System.Windows.Controls.ContextMenu();
         var item = new System.Windows.Controls.MenuItem { Header = "Diagnostics" };
-        item.Click += (_,_) => MessageBox.Show(this, string.Join(Environment.NewLine, log), "USB diagnostics");
+        item.Click += (_,_) => { FlushLog(); MessageBox.Show(this, string.Join(Environment.NewLine, log), "USB diagnostics"); };
         diagnosticMenu.Items.Add(item); Hud.ContextMenu = diagnosticMenu;
     }
 
@@ -104,7 +107,7 @@ public partial class MainWindow : Window
             }));
         };
         active.Bitrate += value => Dispatcher.BeginInvoke(new Action(() => { if (token == generation) rate = value; }));
-        active.Log += text => Dispatcher.BeginInvoke(new Action(() => { if (token == generation) AddLog(text); }));
+        active.Log += text => { if (token == Interlocked.Read(ref generation)) AddLog(text); };
         active.Ended += message => Dispatcher.BeginInvoke(new Action(async () =>
         {
             if (token != generation || closing) return;
@@ -147,12 +150,14 @@ public partial class MainWindow : Window
 
     private void RefreshStats()
     {
+        FlushLog();
         if (session == null) return;
         if (clock.Elapsed.TotalSeconds - lastFrame > 3)
         {
             Status.Text = "Waiting for video · check LiveView on the goggles";
             Video.Source = null; Idle.Visibility = Visibility.Visible;
-            RecordButton.IsEnabled = false; Fps.Text = Resolution.Text = Bitrate.Text = "—";
+            RecordButton.IsEnabled = recording && !saving; // Stop must stay usable when video drops
+            Fps.Text = Resolution.Text = Bitrate.Text = "—";
             StatusDot.Fill = Brushes.Gray;
         }
         else if (Video.Source != null)
@@ -221,17 +226,25 @@ public partial class MainWindow : Window
     }
     private async void WindowClosing(object? sender, CancelEventArgs e)
     {
+        if (closed) return; // cleanup finished: let the window close
+        e.Cancel = true;     // every Close/Alt-F4 waits until the recording is saved
         if (closing) return;
-        e.Cancel = true; closing = true; ConnectButton.IsEnabled = RecordButton.IsEnabled = false;
-        stats.Stop(); await DisconnectAsync(); Close();
+        closing = true; ConnectButton.IsEnabled = RecordButton.IsEnabled = false;
+        stats.Stop(); await DisconnectAsync(); FlushLog(); closed = true; Close();
     }
     private void CloseClick(object sender, RoutedEventArgs e) => Close();
     private void MinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void MaximizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-    private void AddLog(string text)
+    private void AddLog(string text) => incoming.Enqueue(DateTime.Now.ToString("HH:mm:ss") + " " + text);
+
+    private void FlushLog()
     {
-        while (log.Count >= 100) log.Dequeue();
-        log.Enqueue(DateTime.Now.ToString("HH:mm:ss") + " " + text);
+        if (incoming.IsEmpty) return;
+        while (incoming.TryDequeue(out string? line))
+        {
+            if (log.Count >= 100) log.Dequeue();
+            log.Enqueue(line);
+        }
         try
         {
             string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Goggle 3 LiveView");
