@@ -25,7 +25,7 @@ dotnet test Windows/Goggles3.Core.Tests
 
 To rebuild FFmpeg 8.0.3, see `scripts/build-windows-decoder.sh` (x64) and `THIRD_PARTY_NOTICES.md`.
 
-Developer-only local replay: run `Goggle 3 LiveView.exe --replay C:\\tests\\capture.h264`. The `--software-render` option uses software rendering if a graphics driver cannot initialize WPF; it does not change USB transport. The `Goggles3.Check` project checks decoding and recording without the UI.
+Developer-only local replay: run `Goggle 3 LiveView.exe --replay C:\\tests\\capture.h264`. The `--software-render` option uses software rendering if a graphics driver cannot initialize WPF; it does not change USB transport. The `Goggles3.Bench` dev tool checks decoding and recording without the UI (`check`) and runs fake goggles soak tests (`soak`).
 
 ## References
 

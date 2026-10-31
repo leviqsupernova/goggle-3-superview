@@ -20,7 +20,10 @@ dotnet build Windows/Goggles3.Windows -c Release                # WPF builds on 
 ```
 On Windows: `./Windows/scripts/Publish.ps1 -Runtime win-x64` -> `outputs/Goggle-3-LiveView-Windows-x64/`.
 Replay without goggles: `"Goggle 3 LiveView.exe" --replay C:\path\capture.h264` (bypasses UDP + protocol).
-Test clip: `ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=60 -t 10 -c:v libx264 -f h264 /tmp/test.h264`.
+Test clip (live-like: no B-frames, ~26 Mbps): `ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=60 -t 20 -c:v libx264 -preset veryfast -b:v 30M -maxrate 30M -bufsize 10M -g 60 -bf 0 -f h264 clip.h264`.
+Soak (Linux, fake goggles -> real Core pipeline, CSV per interval): `dotnet run -c Release --project Windows/Goggles3.Bench -- soak --file clip.h264 --minutes 480 --csv soak.csv`.
+Faults: `--loss %`, `--reorder %`, `--stall every:for [--resubscribe]`, `--closed s`. Slow decoder: `kill -STOP/-CONT $(pgrep -x ffmpeg)`
+(never `pkill -f`: it matches the calling shell). Socket drops: `Udp` `RcvbufErrors` in `/proc/net/snmp`.
 Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: fix warnings, never suppress them.
 
 ## How it works
@@ -64,7 +67,7 @@ Each fix needs a test or soak measurement that shows the problem first. "Fixed" 
 - [x] 0b. Removal (own commit, `dotnet test` + build green after): delete Multi per the Removal list; update README.md,
       this file, and rename the app/exe if decided. Fixes from Multi to port in step 3 are listed under Removal list.
 - [x] 1. Audit: `ponytail-audit` + Codex review -> ranked list + verdicts in `STEPLOG.md`. Graphify: repo not indexed (owner adds it).
-- [ ] 2. Fake goggles (UDP sender speaking `LiveProtocol`, plays an H.264 file, packet loss/stall/reorder options)
+- [x] 2. Fake goggles (UDP sender speaking `LiveProtocol`, plays an H.264 file, packet loss/stall/reorder options)
       + soak harness (memory, GC, fps, reconnects, logged per minute). Built before the fixes.
 - [ ] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording + decoder auto-restart, each with a test or soak number.
 - [ ] 4. `--connect` (auto-connect + auto-reconnect), single instance (second launch focuses the window),
@@ -100,4 +103,5 @@ never block on a dialog when the goggles are absent (status text instead), refus
 
 ## Bench results
 
-(none yet)
+- 2026-10-31 step 2 baseline (Linux, fake goggles, 1080p60 26 Mbps, before fixes): clean = 60 fps, ~490 MB/s allocated,
+  ~6.7 Gen2 GC/s, 4.7 ms GC pause/s. Findings #1, #2, #6 reproduced; 0.5 % packet loss = ~30 % frames lost. See `STEPLOG.md`.

@@ -49,3 +49,26 @@ Rejected: none. Codex's claims were each checked against the code; #12 and #13 a
 impact depends on hardware behaviour not visible in the code.
 Ported from Multi (still to do in step 3): refuse a new recording while the last one is saving (UI already guards via `saving`;
 #4/#5 cover the session side), `-threads 1` / `-filter_threads 1` (measure against #6/#13 first).
+
+## Step 2: Fake goggles + soak harness (2026-10-31)
+
+`Windows/Goggles3.Bench` (was `Goggles3.Check`, finding #19: reused, not deleted): `check` = old replay + record check,
+`soak` = `FakeGoggles` (goggles side of the UDP session, plays an H.264 file one access unit per frame, faults: loss,
+reorder, stall, stall + resubscribe, port closed at start) -> `UdpVideoReceiver` -> `FfmpegVideoSession` with system ffmpeg,
+one CSV row per interval (fps, max frame gap, fake frames/handshakes/drops/ACKs, decoder lines, sessions ended, GC gen0/1/2,
+GC pause, allocated MB, heap, working set, CPU). When a session ends the harness restarts it after 1 s (the shipped app
+does not). Tests: AU splitter, packetizer through `LiveProtocol` across the 16-bit wrap, fake -> receiver byte-for-byte (13/13 green).
+Limits: the fake's unit size and timing are guesses (real goggles not captured); frame counts do not detect corrupt pictures;
+no WPF copy in the frame handler.
+
+Baseline before fixes (Arch, 16 cores, ffmpeg 9.0.2, 20 s testsrc2 clip 1080p60 ~26 Mbps, no B-frames, looped):
+
+| Run | Result | Finding |
+|---|---|---|
+| clean, 90 s | 60.0 fps, max gap 20 ms, 0 sessions ended; per 15 s: ~7340 MB allocated (~490 MB/s), 100 Gen2 GCs (~6.7/s), ~71 ms GC pause; app CPU ~52 % of one core | #7 measured: allocation rate confirmed; pause small on this box, recheck on the bench PC |
+| `--closed 3` | 3 sessions ended with `USB reception: Connection refused` (Linux form of `WSAECONNRESET`), ffmpeg also logs `Error opening output file pipe:1`; video only after harness restart | #1 **reproduced** |
+| `--stall 15:3 --resubscribe` | after the stall: 0 frames for 45 s, handshakes stay at 1 (viewer never re-subscribes) | #2 **reproduced** |
+| 1 s decoder pause x3 (`kill -STOP`) | 1587 UDP datagrams dropped by the kernel (`RcvbufErrors`), ACKs stop during each pause (575/600), 1 s frame gaps | #6 **reproduced** |
+| `--loss 0.5` | ~42 fps (~30 % frames lost; one lost part drops the whole unit), gaps up to 450 ms, ffmpeg logs nothing, ACK still sent for units with missing parts | new note: ACK on last part only, decoder silent |
+| `--reorder 1` | 60 fps, max gap 35 ms, no decoder errors | #12: no visible effect at frame-count level; stays "plausible", needs a picture check to judge |
+| slow decoder (`taskset -c 0`) | still 60 fps on this CPU | #6 needs the pause test, not just one core |
