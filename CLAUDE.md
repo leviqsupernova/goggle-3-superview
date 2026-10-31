@@ -81,7 +81,7 @@ CI does not cover: running the WPF UI, `Prepare-Usb.ps1`, real goggles. Those ar
 - [x] 2. Fake goggles (UDP sender speaking `LiveProtocol`, plays an H.264 file, packet loss/stall/reorder options)
       + soak harness (memory, GC, fps, reconnects, logged per minute). Built before the fixes.
 - [x] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording, each with a test or soak number.
-- [ ] 4. `--connect` (auto-connect + auto-reconnect, also restarts after a decoder crash = finding #11), single instance (second launch focuses the window),
+- [x] 4. (viewer PR #7, superflash PR #12; bench check pending) `--connect` (auto-connect + auto-reconnect, also restarts after a decoder crash = finding #11), single instance (second launch focuses the window),
       superflash: menu key + exe path in its `config.ini`.
 - [ ] 5. Structure + UI (skills: `impeccable`, `stop-slop`, `run` for screenshots). Library: WPF + WPF-UI (decided). UI can only be run and screenshotted on
       the Windows PC, so UI work is done in small batches and the owner sends screenshots/feedback; logic stays in `Core` (testable on Linux).
