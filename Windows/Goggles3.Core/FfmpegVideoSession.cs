@@ -32,7 +32,8 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
         Begin(async (feed, token) =>
         {
             // ~4 s at 60 units/s: rides out decoder hiccups without blocking UDP reception or ACKs.
-            var queue = new H264Queue(240, text => Log?.Invoke(text));
+            // Starts at a keyframe: a decoder joining mid-GOP logs hundreds of "non-existing PPS" errors.
+            var queue = new H264Queue(240, text => Log?.Invoke(text), startAtKeyframe: true);
             Task receiving = Task.Run(async () =>
             {
                 try { await receiver.RunAsync((data, _) => { queue.Add(data); return ValueTask.CompletedTask; }, token).ConfigureAwait(false); }

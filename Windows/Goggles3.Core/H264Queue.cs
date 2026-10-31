@@ -7,12 +7,13 @@ namespace Goggles3.Core;
 /// reception or ACKs. When full, chunks are dropped until the next keyframe (SPS or IDR), or until
 /// a capacity of drops has passed, for goggles that rarely send one.
 /// Single writer (the receiver loop), single reader (the decoder pipe).
+/// <paramref name="startAtKeyframe"/>: also drop until the first keyframe (a new decoder joining mid-stream).
 /// </summary>
-public sealed class H264Queue(int capacity, Action<string>? log = null)
+public sealed class H264Queue(int capacity, Action<string>? log = null, bool startAtKeyframe = false)
 {
     private readonly Channel<byte[]> channel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(capacity)
         { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
-    private int resyncDrops = -1; // -1 = not resyncing
+    private int resyncDrops = startAtKeyframe ? 0 : -1; // -1 = not resyncing
     private long dropped;
 
     public long Dropped => Interlocked.Read(ref dropped);

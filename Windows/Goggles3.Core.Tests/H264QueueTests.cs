@@ -50,6 +50,15 @@ public sealed class H264QueueTests
         Assert.Equal([Delta(5), Delta(6)], await DrainAsync(queue));
     }
 
+    [Fact] public async Task StartAtKeyframe_DropsLeadingDeltas_SoANewDecoderDoesNotStartMidGop()
+    {
+        var queue = new H264Queue(4, startAtKeyframe: true);
+        queue.Add(Delta(1)); queue.Add(Delta(2)); // "non-existing PPS" storm in ffmpeg without this
+        queue.Add(Key); queue.Add(Delta(3));
+        Assert.Equal(2, queue.Dropped);
+        Assert.Equal([Key, Delta(3)], await DrainAsync(queue));
+    }
+
     private static async Task DrainOne(H264Queue queue)
     {
         await using var reader = queue.ReadAllAsync(CancellationToken.None).GetAsyncEnumerator();
