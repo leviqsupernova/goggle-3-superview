@@ -114,3 +114,11 @@ Not done in step 3, with verdict:
 | 6 WARNING | Recorder fed after the decoder queue: a decoder stall cuts the recording | **kept**: recorder fed in the receiver callback. Soak `--record`, decoder paused 5 s: decoder resynced, MP4 has 1796/1796 frames, 0 dropped |
 | 7 WARNING | Failed feed returns before the receiver ends; reconnect may hit the still-bound UDP port | **kept**: `finally` awaits the receiver |
 | 8 WARNING | `FlushLog` still writes the file on the UI thread | **kept**: write in `Task.Run`, one at a time, dirty flag (WPF, bench check) |
+
+### Step 3 Codex review, round 2 (verdict: REVISE) and Claude's verdicts
+
+| Codex | Point | Verdict + proof |
+|---|---|---|
+| 1 WARNING | SPS repeated but PPS sent once: `Complete` saw the SPS and skipped the cached PPS | **kept**: SPS and PPS checked separately; a missing PPS brings the cached SPS in front (ffmpeg needs SPS before PPS: SPS,PPS,SPS,IDR decodes 90/90 frames). Test red -> green |
+| 2 WARNING | SPS split across two chunks cached truncated | **kept**: unfinished SPS/PPS carried to the next chunk (`shortcut:` a split start code is not handled). Test red -> green |
+| 3 WARNING | Close during a diagnostics write loses the last lines | **kept**: close awaits the running write, then writes the rest (WPF, bench check) |

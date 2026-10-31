@@ -8,6 +8,8 @@ namespace Goggles3.Core;
 public sealed class ParameterSets
 {
     private byte[]? sps, pps;
+    private byte[]? partial; // SPS/PPS cut off by the end of the last chunk
+    private int partialType;
 
     public void Observe(byte[] chunk)
     {
@@ -16,30 +18,34 @@ public sealed class ParameterSets
         {
             if (chunk[i] != 0 || chunk[i + 1] != 0 || chunk[i + 2] != 1) continue;
             int next = i > 0 && chunk[i - 1] == 0 ? i - 1 : i;
-            Keep(chunk, begin, next, type);
+            if (begin >= 0) Keep(type, chunk[begin..next]);
+            else if (partial != null) { Keep(partialType, [.. partial, .. chunk[..next]]); partial = null; }
             begin = next; type = chunk[i + 3] & 0x1f; i += 2;
         }
-        Keep(chunk, begin, chunk.Length, type);
+        // shortcut: a start code split across two chunks is not detected (2 bytes in a whole chunk; the next SPS fixes it).
+        if (begin < 0) { if (partial != null) partial = partial.Length < 4096 ? [.. partial, .. chunk] : null; }
+        else if (type is 7 or 8) { partial = chunk[begin..]; partialType = type; }
     }
 
-    private void Keep(byte[] chunk, int begin, int end, int type)
+    private void Keep(int type, byte[] nal)
     {
-        if (begin < 0) return;
-        if (type == 7) sps = chunk[begin..end];
-        else if (type == 8) pps = chunk[begin..end];
+        if (type == 7) sps = nal;
+        else if (type == 8) pps = nal;
     }
 
-    /// <summary>The chunk, with the cached SPS/PPS in front when it has no SPS of its own.</summary>
+    /// <summary>The chunk, with the cached SPS and/or PPS in front when it lacks its own.</summary>
     public byte[] Complete(byte[] chunk)
     {
-        if (sps == null || pps == null || HasSps(chunk)) return chunk;
-        return [.. sps, .. pps, .. chunk];
+        bool needPps = pps != null && !Has(chunk, 8);
+        // A PPS needs its SPS parsed first, so a missing PPS brings the cached SPS along (the chunk's own SPS then follows).
+        bool needSps = sps != null && (needPps || !Has(chunk, 7));
+        return !needSps && !needPps ? chunk : [.. needSps ? sps! : [], .. needPps ? pps! : [], .. chunk];
     }
 
-    private static bool HasSps(ReadOnlySpan<byte> chunk)
+    private static bool Has(ReadOnlySpan<byte> chunk, int nalType)
     {
         for (int i = 0; i + 3 < chunk.Length; i++)
-            if (chunk[i] == 0 && chunk[i + 1] == 0 && chunk[i + 2] == 1 && (chunk[i + 3] & 0x1f) == 7) return true;
+            if (chunk[i] == 0 && chunk[i + 1] == 0 && chunk[i + 2] == 1 && (chunk[i + 3] & 0x1f) == nalType) return true;
         return false;
     }
 }

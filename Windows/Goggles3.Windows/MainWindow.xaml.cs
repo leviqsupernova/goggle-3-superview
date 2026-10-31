@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly ConcurrentQueue<string> incoming = new();
     private int writingLog;
     private bool logDirty;
+    private Task logWrite = Task.CompletedTask;
     private string? currentRecordingPath;
 
     public MainWindow()
@@ -237,7 +238,9 @@ public partial class MainWindow : Window
         e.Cancel = true;     // every Close/Alt-F4 waits until the recording is saved
         if (closing) return;
         closing = true; ConnectButton.IsEnabled = RecordButton.IsEnabled = false;
-        stats.Stop(); await DisconnectAsync(); FlushLog(); closed = true; Close();
+        stats.Stop(); await DisconnectAsync();
+        await logWrite; FlushLog(); await logWrite; // the last lines (why it stopped) must reach the file
+        closed = true; Close();
     }
     private void CloseClick(object sender, RoutedEventArgs e) => Close();
     private void MinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -255,7 +258,7 @@ public partial class MainWindow : Window
         if (!logDirty || Interlocked.CompareExchange(ref writingLog, 1, 0) != 0) return;
         logDirty = false;
         string[] lines = [.. log];
-        _ = Task.Run(() =>
+        logWrite = Task.Run(() =>
         {
             try
             {
