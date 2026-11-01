@@ -48,7 +48,7 @@ public sealed class FakeGogglesTests
         await all.Task.WaitAsync(timeout.Token);
         await sending;
         Assert.Equal(clip, received.ToArray());
-        Assert.Equal(1, fake.Stats.Handshakes);
+        Assert.True(fake.Stats.Handshakes >= 1); // the viewer repeats it every second until video arrives (slow CI start)
         Assert.Equal(600, fake.Stats.Frames); // 200 x (IDR, P, P)
         timeout.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => receiving);

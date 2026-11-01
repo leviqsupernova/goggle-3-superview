@@ -44,7 +44,7 @@ public sealed class ReceiverRecoveryTests
     {
         // Handshakes into a closed port get ICMP port unreachable: Linux ECONNREFUSED, Windows WSAECONNRESET.
         FakeGoggles fake = await RunUntilVideoAsync(new FakeOptions { ClosedFor = 1.5 }, _ => true);
-        Assert.Equal(1, fake.Stats.Handshakes);
+        Assert.True(fake.Stats.Handshakes >= 1); // the viewer repeats it every second until video arrives (slow CI start)
     }
 
     [Fact] public async Task Receiver_SubscribesAgain_WhenStreamStopsAndGogglesNeedANewHandshake()
