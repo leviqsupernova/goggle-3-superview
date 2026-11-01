@@ -144,3 +144,22 @@ Codex (1 review + 1 follow-up): P2 startup race (second `--connect` during first
 creating the events before the mutex; follow-up APPROVED.
 Bench checks: launch with `--connect` and no goggles (status text, no dialog); plug goggles in (connects); unplug/replug
 (reconnects); launch twice (one window, comes to front); kill ffmpeg in Task Manager (reconnects).
+
+## Step 6: stress soak instead of 8 h (2026-11-01)
+
+Owner decision: no 8 h run. Instead 30 min on Linux packed with the events a long day produces (slow leaks grow per event,
+not per hour). `Goggles3.Bench soak --minutes 30 --restart-every 30 --stall 120:3 --resubscribe --loss 0.1 --record`,
+plus a 2 s `kill -STOP` of the decoder every 90 s. New soak options: `--restart-every`, one MP4 per session, `threads` and
+`ffmpeg_procs` columns.
+
+| Check | Result |
+|---|---|
+| Session restarts | 57 forced, 0 unplanned session ends |
+| Faults survived | 15 stalls with re-handshake (3 s gaps), 18 decoder pauses, 0.1 % packet loss (~135 packets/min dropped) |
+| Memory | heap 98-175 MB, working set 162-259 MB, no upward trend (189 MB at the end); ~16 MB/s allocated, 0-3 Gen2/min (one 24 MB frame buffer set per new session) |
+| Threads / processes | threads 18-22 flat; always 2 ffmpeg (decoder + recorder), 0 left after exit |
+| UDP | 0 new kernel receive-buffer drops (`RcvbufErrors` unchanged) |
+| Recordings | 58 MP4s, all readable, 99 121 frames = 99 121 chunks reported, 0 dropped; full decode of a sample: 0 errors |
+| fps | 50-56 average per minute (loss + stalls + pauses injected), recovered after every fault |
+
+Not covered: WPF UI memory over hours, Windows-only behaviour, real goggles (short bench check when the bench is available).
