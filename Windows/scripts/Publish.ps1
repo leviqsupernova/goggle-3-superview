@@ -1,4 +1,4 @@
-param([ValidateSet('win-x64')][string]$Runtime='win-x64', [string]$Output)
+param([ValidateSet('win-x64')][string]$Runtime='win-x64', [string]$Output, [switch]$Zip)
 $ErrorActionPreference = 'Stop'
 $project = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 if (!$Output) { $Output = Join-Path $project "outputs/Goggle-3-LiveView-Windows-$($Runtime -replace '^win-', '')" }
@@ -25,4 +25,10 @@ $wpfUi = Join-Path $nuget 'wpf-ui/4.3.0' # keep in step with the WPF-UI version 
 Copy-Item (Join-Path $wpfUi 'LICENSE.md') (Join-Path $Output 'Licenses/WPF-UI-LICENSE.md')
 Copy-Item (Join-Path $wpfUi 'ThirdPartyNotices.txt') (Join-Path $Output 'Licenses/WPF-UI-THIRD-PARTY-NOTICES.txt')
 Copy-Item (Join-Path $project 'Windows/README.md') (Join-Path $Output 'README.md')
+if ($Zip) {
+    $archive = "$Output.zip"
+    Remove-Item $archive -ErrorAction SilentlyContinue
+    Compress-Archive -Path $Output -DestinationPath $archive # the folder is the zip's single top-level entry
+    Write-Host "Zip created: $archive"
+}
 Write-Host "Package created: $Output"

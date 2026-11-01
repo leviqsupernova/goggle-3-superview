@@ -182,3 +182,15 @@ UI checked through the `ui-screenshots` CI job (8 states, incl. new `08-small-wi
 Codex (1 review + 1 follow-up): P2 "hidden title-bar caption buttons still take clicks in fullscreen" (WPF-UI's
 caption hit test ignores `Visibility`) **kept**, fixed with `TitleBar.IsHitTestVisible = false` in fullscreen; follow-up APPROVED.
 Bench checks: fullscreen, then click where Close was (nothing happens); first-time setup via "Set up" with `--connect`.
+
+## Step 7: release zip + README (2026-11-01)
+
+| Change | Proof |
+|---|---|
+| `Publish.ps1 -Zip` makes `outputs/Goggle-3-LiveView-Windows-x64.zip`; `release.yml`: tag `v*` builds it and drafts a GitHub release (nothing is published until the owner publishes the draft); PRs touching the script get a test build | CI run on this PR (zip step + artifact) |
+| `Windows/README.md` rewritten for this fork (was upstream text: old site link, "MPEG-4 re-encode with VFR", no `--connect`) | read against code |
+| `THIRD_PARTY_NOTICES.md`: Linux/macOS/ARM64/VideoToolbox paragraphs removed; the claim that the FFmpeg source archive ships with each release is replaced by the source URL + SHA-256 (the zip does not contain it) | read |
+| Root `README.md`: Download section | read |
+
+Not done, owner decides: `docs/` website (upstream marketing for Mac/Linux, still deployed from upstream's Pages), app/exe name,
+first tag/release. The zip is unsigned: Windows SmartScreen may warn on first run.
