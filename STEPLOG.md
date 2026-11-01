@@ -194,3 +194,5 @@ Bench checks: fullscreen, then click where Close was (nothing happens); first-ti
 
 Not done, owner decides: `docs/` website (upstream marketing for Mac/Linux, still deployed from upstream's Pages), app/exe name,
 first tag/release. The zip is unsigned: Windows SmartScreen may warn on first run.
+
+Owner decisions 2026-11-01: `docs/` deleted; no rename (exe stays "Goggle 3 LiveView"); first release is a pre-release, bench checks pending.
