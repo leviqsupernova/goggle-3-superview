@@ -44,6 +44,8 @@ Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: 
   `Mp4Recorder`: second ffmpeg, copies the H.264 (`-c copy`) into a fragmented MP4 (playable even if killed).
 - `AdapterLocator`: finds the adapter via registry PnP id + cfgmgr32 (Missing / NeedsSetup / Ready), runs `Prepare-Usb.ps1`
   elevated only after a Connect click. `AutoConnect` (Core): find -> session -> retry every 2 s, status text only.
+- `ViewerState` (Core) decides badge, idle text and fps; `MainWindow` only renders it (`Render()`). UI = WPF-UI 4.3.0
+  `FluentWindow` (dark, mint accent); title bar and control bar sit outside the video.
 - `App`: single instance (`Local\Goggles3SuperView` mutex + `.show` / `.connect` events).
 - ffmpeg binaries in `Windows/third_party/ffmpeg-*` are LGPL builds: replacing one means updating
   `THIRD_PARTY_NOTICES.md`.
@@ -84,8 +86,8 @@ CI does not cover: running the WPF UI, `Prepare-Usb.ps1`, real goggles. Those ar
 - [x] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording, each with a test or soak number.
 - [x] 4. (viewer PR #7, superflash PR #12; bench check pending) `--connect` (auto-connect + auto-reconnect, also restarts after a decoder crash = finding #11), single instance (second launch focuses the window),
       superflash: menu key + exe path in its `config.ini`.
-- [ ] 5. Structure + UI (skills: `impeccable`, `stop-slop`, `run` for screenshots). Library: WPF + WPF-UI (decided). UI can only be run and screenshotted on
-      the Windows PC, so UI work is done in small batches and the owner sends screenshots/feedback; logic stays in `Core` (testable on Linux).
+- [x] 5. (PR #10; bench check pending) Structure + UI: WPF-UI dark Fluent look, `ViewerState`/`DiagnosticLog` in Core, the 4 screenshot
+      issues fixed. UI checked via the `ui-screenshots` CI job; logic stays in `Core` (testable on Linux).
 - [x] 6. Soak: 30 min stress soak on Linux instead of 8 h (owner decision 2026-11-01), passed, see `STEPLOG.md`.
       Real goggles: short check on the bench when available.
 - [ ] 7. Release zip, README. No PRs to `upstream`.

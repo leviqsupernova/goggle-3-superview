@@ -300,13 +300,14 @@ public partial class MainWindow
             WindowState = WindowState.Normal; ResizeMode = ResizeMode.NoResize; WindowCornerPreference = WindowCornerPreference.DoNotRound;
             Left = origin.X; Top = origin.Y; Width = extent.X-origin.X; Height = extent.Y-origin.Y; Topmost = true;
             TitleBar.Visibility = ControlBar.Visibility = Visibility.Collapsed;
+            TitleBar.IsHitTestVisible = false; // WPF-UI's caption hit test ignores Visibility: hidden Close must not take clicks
         }
         else
         {
             fullscreen = false;
             Topmost = savedTopmost; ResizeMode = ResizeMode.CanResize; WindowCornerPreference = WindowCornerPreference.Round;
             Left = savedBounds.Left; Top = savedBounds.Top; Width = savedBounds.Width; Height = savedBounds.Height;
-            WindowState = savedState; TitleBar.Visibility = ControlBar.Visibility = Visibility.Visible;
+            WindowState = savedState; TitleBar.Visibility = ControlBar.Visibility = Visibility.Visible; TitleBar.IsHitTestVisible = true;
         }
     }
     private void WindowKeyDown(object sender, KeyEventArgs e)
