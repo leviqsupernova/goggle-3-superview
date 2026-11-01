@@ -16,4 +16,7 @@
     <Resource Include="../../assets/AppIcon.png" Link="AppIcon.png" />
     <Content Include="../scripts/Prepare-Usb.ps1" Link="Prepare-Usb.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
 </Project>

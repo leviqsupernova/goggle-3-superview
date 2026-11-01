@@ -14,12 +14,8 @@ public sealed record Adapter(AdapterState State, IPAddress? Address = null);
 public sealed class AutoConnect(
     Func<CancellationToken, Task<Adapter>> find,
     Func<IPAddress, CancellationToken, Task<string>> runSession,
-    Action<string> status)
+    Action<ViewerStatus> status)
 {
-    public const string WaitingForGoggles = "Waiting for the goggles · plug in the USB cable";
-    public const string NeedsSetup = "USB connection not set up yet · click Connect once to set it up";
-    public const string Connecting = "Connecting to the goggles…";
-
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(2);
 
     /// <summary>Runs until cancelled; ends with <see cref="OperationCanceledException"/>.</summary>
@@ -31,20 +27,20 @@ public sealed class AutoConnect(
             try
             {
                 Adapter adapter = await find(token).ConfigureAwait(false);
-                if (adapter.State == AdapterState.Missing) status(WaitingForGoggles);
-                else if (adapter.State == AdapterState.NeedsSetup) status(NeedsSetup);
+                if (adapter.State == AdapterState.Missing) status(ViewerStatus.WaitingForGoggles);
+                else if (adapter.State == AdapterState.NeedsSetup) status(ViewerStatus.NeedsSetup);
                 else
                 {
-                    status(Connecting);
+                    status(ViewerStatus.Connecting);
                     string reason = await runSession(adapter.Address!, token).ConfigureAwait(false);
                     token.ThrowIfCancellationRequested();
-                    status(reason + " · Reconnecting…");
+                    status(ViewerStatus.Reconnecting(reason));
                 }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 // A device problem or a missing decoder: show it and keep trying, the operator may fix it meanwhile.
-                status(error.Message + " · Retrying…");
+                status(ViewerStatus.Retrying(error.Message));
             }
             await Task.Delay(RetryDelay, token).ConfigureAwait(false);
         }

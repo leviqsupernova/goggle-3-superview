@@ -42,6 +42,12 @@ function Press([int]$processId, [string]$automationId) {
     (Find $processId $automationId).GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 
+function Resize([int]$processId, [int]$width, [int]$height) {
+    $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $processId)
+    $window = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    $window.GetCurrentPattern([System.Windows.Automation.TransformPattern]::Pattern).Resize($width, $height)
+}
+
 function Run([string[]]$arguments, [scriptblock]$steps) {
     $process = Start-Process $App -ArgumentList ($arguments + '--software-render') -PassThru
     try { & $steps $process.Id } finally { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue; Start-Sleep 1 }
@@ -57,5 +63,7 @@ Run @('--replay', "`"$clip`"") {
     Press $id 'FullscreenButton'; Start-Sleep 2; Shot '06-fullscreen'
     [System.Windows.Forms.SendKeys]::SendWait('{ESC}'); Start-Sleep 1
     Press $id 'TutorialButton'; Start-Sleep 2; Shot '07-tutorial'
+    Press $id 'TutorialClose'; Start-Sleep 1
+    Resize $id 860 540; Start-Sleep 2; Shot '08-small-window' # minimum size: nothing cut off or overlapping
 }
 Write-Host "Screenshots in $Out"

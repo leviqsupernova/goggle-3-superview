@@ -1,0 +1,53 @@
+<ui:FluentWindow x:Class="Goggles3.Windows.TutorialWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+ Title="Set up your Goggles 3" Width="660" SizeToContent="Height" MaxHeight="820" ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+ ExtendsContentIntoTitleBar="True" WindowBackdropType="None" Background="{StaticResource Chrome}" Foreground="White">
+ <ui:FluentWindow.Resources>
+  <Style x:Key="Number" TargetType="TextBlock"><Setter Property="FontSize" Value="17"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="{StaticResource Mint}"/></Style>
+  <Style x:Key="StepTitle" TargetType="TextBlock"><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style x:Key="StepText" TargetType="TextBlock"><Setter Property="FontSize" Value="13"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,4,0,0"/><Setter Property="Foreground" Value="#D9FFFFFF"/></Style>
+  <Style TargetType="Grid" x:Key="Step"><Setter Property="Margin" Value="0,0,0,18"/></Style>
+ </ui:FluentWindow.Resources>
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <ui:TitleBar Title="Set up your Goggles 3" ShowMinimize="False" ShowMaximize="False" Background="{StaticResource Chrome}">
+   <ui:TitleBar.Icon><ui:ImageIcon Source="pack://application:,,,/AppIcon.png"/></ui:TitleBar.Icon>
+  </ui:TitleBar>
+  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+   <StackPanel Margin="32,12,32,28">
+    <TextBlock Text="Set up your Goggles 3" FontSize="26" FontWeight="SemiBold"/>
+    <TextBlock Text="Direct USB to your computer. No RC Pro needed." Foreground="{StaticResource Muted}" Margin="0,6,0,24"/>
+
+    <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
+     <TextBlock Text="1" Style="{StaticResource Number}"/>
+     <StackPanel Grid.Column="1"><TextBlock Text="Connect the goggles to your computer" Style="{StaticResource StepTitle}"/>
+      <TextBlock Text="Power on the Goggles 3 and use a USB data cable." Style="{StaticResource StepText}"/></StackPanel></Grid>
+    <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
+     <TextBlock Text="2" Style="{StaticResource Number}"/>
+     <StackPanel Grid.Column="1"><TextBlock Text="Turn on OTG Wired Connection" Style="{StaticResource StepTitle}"/>
+      <TextBlock Text="On the goggles: Settings → About → OTG Wired Connection. DJI documents this setting for connecting the goggles to a computer." Style="{StaticResource StepText}"/></StackPanel></Grid>
+    <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
+     <TextBlock Text="3" Style="{StaticResource Number}"/>
+     <StackPanel Grid.Column="1"><TextBlock Text="Turn on LiveView sharing" Style="{StaticResource StepTitle}"/>
+      <TextBlock Text="Push the 5D button backward and turn on LiveView sharing to a mobile device over Wi-Fi. The viewer needs this setting for USB video too." Style="{StaticResource StepText}"/></StackPanel></Grid>
+    <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
+     <TextBlock Text="4" Style="{StaticResource Number}"/>
+     <StackPanel Grid.Column="1"><TextBlock Text="Show the goggles screen without a drone" Style="{StaticResource StepTitle}"/>
+      <TextBlock Text="Settings → Camera → Advanced Camera Settings → Camera View Recording. Keep it on to see the goggles screen here without a drone." Style="{StaticResource StepText}"/></StackPanel></Grid>
+    <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
+     <TextBlock Text="5" Style="{StaticResource Number}"/>
+     <StackPanel Grid.Column="1"><TextBlock Text="Click Connect" Style="{StaticResource StepTitle}"/>
+      <TextBlock Text="The first time, Windows asks for admin permission to set up the goggles USB adapter. Do not use Zadig or replace its driver with WinUSB. No video? Click Disconnect, turn LiveView sharing off and on again on the goggles, then click Connect." Style="{StaticResource StepText}"/></StackPanel></Grid>
+
+    <TextBlock Text="Record saves an MP4 in Videos › Goggle 3 LiveView. Click Stop to finish the file." TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,4,0,0"/>
+    <DockPanel Margin="0,22,0,16" LastChildFill="False">
+     <ui:Button DockPanel.Dock="Right" Appearance="Primary" Content="Got it" MinWidth="96" IsDefault="True" IsCancel="True" Click="CloseClick" AutomationProperties.AutomationId="TutorialClose"/>
+     <ui:Button DockPanel.Dock="Left" Content="DJI manual (PDF)" Click="ManualClick">
+      <ui:Button.Icon><ui:SymbolIcon Symbol="Open24"/></ui:Button.Icon>
+     </ui:Button>
+    </DockPanel>
+    <TextBlock Text="Setting names follow the DJI manual. USB video and use without a drone are features of this viewer, not of DJI." FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource Muted}"/>
+   </StackPanel>
+  </ScrollViewer>
+ </Grid>
+</ui:FluentWindow>

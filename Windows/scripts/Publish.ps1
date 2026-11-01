@@ -21,5 +21,8 @@ $desktopPack = Get-ChildItem (Join-Path $nuget "microsoft.windowsdesktop.app.run
 Copy-Item (Join-Path $runtimePack.FullName 'LICENSE.TXT') (Join-Path $Output 'Licenses/DotNET-LICENSE.txt')
 Copy-Item (Join-Path $runtimePack.FullName 'THIRD-PARTY-NOTICES.TXT') (Join-Path $Output 'Licenses/DotNET-THIRD-PARTY-NOTICES.txt')
 Copy-Item (Join-Path $desktopPack.FullName 'LICENSE') (Join-Path $Output 'Licenses/WPF-LICENSE.txt')
+$wpfUi = Join-Path $nuget 'wpf-ui/4.3.0' # keep in step with the WPF-UI version in Goggles3.Windows.csproj
+Copy-Item (Join-Path $wpfUi 'LICENSE.md') (Join-Path $Output 'Licenses/WPF-UI-LICENSE.md')
+Copy-Item (Join-Path $wpfUi 'ThirdPartyNotices.txt') (Join-Path $Output 'Licenses/WPF-UI-THIRD-PARTY-NOTICES.txt')
 Copy-Item (Join-Path $project 'Windows/README.md') (Join-Path $Output 'README.md')
 Write-Host "Package created: $Output"

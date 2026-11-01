@@ -17,7 +17,8 @@ Development on Arch Linux, the app runs on **Windows** at the drone bench, launc
 ```sh
 dotnet test Windows/Goggles3.Core.Tests                         # all Core tests, ~5 s; recording tests need ffmpeg on PATH
 dotnet test Windows/Goggles3.Core.Tests --filter RecordingTests # one class (focused run while iterating)
-dotnet build Windows/Goggles3.Windows -c Release                # WPF builds on Linux (EnableWindowsTargeting), cannot run here
+dotnet build Windows/Goggles3.Windows -c Release -r win-x64     # WPF builds on Linux (EnableWindowsTargeting), cannot run here;
+                                                                # -r is needed on Arch (SDK RID arch-x64 has no apphost pack)
 ```
 The whole suite is fast: run it before each commit. On Windows the tests use the bundled ffmpeg (cannot read MP4, so the
 recording tests only check "saved, non-empty" unless a full ffmpeg is on PATH).
@@ -43,6 +44,8 @@ Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: 
   `Mp4Recorder`: second ffmpeg, copies the H.264 (`-c copy`) into a fragmented MP4 (playable even if killed).
 - `AdapterLocator`: finds the adapter via registry PnP id + cfgmgr32 (Missing / NeedsSetup / Ready), runs `Prepare-Usb.ps1`
   elevated only after a Connect click. `AutoConnect` (Core): find -> session -> retry every 2 s, status text only.
+- `ViewerState` (Core) decides badge, idle text and fps; `MainWindow` only renders it (`Render()`). UI = WPF-UI 4.3.0
+  `FluentWindow` (dark, mint accent); title bar and control bar sit outside the video.
 - `App`: single instance (`Local\Goggles3SuperView` mutex + `.show` / `.connect` events).
 - ffmpeg binaries in `Windows/third_party/ffmpeg-*` are LGPL builds: replacing one means updating
   `THIRD_PARTY_NOTICES.md`.
@@ -83,8 +86,8 @@ CI does not cover: running the WPF UI, `Prepare-Usb.ps1`, real goggles. Those ar
 - [x] 3. Stability fixes (STEPLOG step 1 list) + H.264 remux recording, each with a test or soak number.
 - [x] 4. (viewer PR #7, superflash PR #12; bench check pending) `--connect` (auto-connect + auto-reconnect, also restarts after a decoder crash = finding #11), single instance (second launch focuses the window),
       superflash: menu key + exe path in its `config.ini`.
-- [ ] 5. Structure + UI (skills: `impeccable`, `stop-slop`, `run` for screenshots). Library: WPF + WPF-UI (decided). UI can only be run and screenshotted on
-      the Windows PC, so UI work is done in small batches and the owner sends screenshots/feedback; logic stays in `Core` (testable on Linux).
+- [x] 5. (PR #10; bench check pending) Structure + UI: WPF-UI dark Fluent look, `ViewerState`/`DiagnosticLog` in Core, the 4 screenshot
+      issues fixed. UI checked via the `ui-screenshots` CI job; logic stays in `Core` (testable on Linux).
 - [x] 6. Soak: 30 min stress soak on Linux instead of 8 h (owner decision 2026-11-01), passed, see `STEPLOG.md`.
       Real goggles: short check on the bench when available.
 - [ ] 7. Release zip, README. No PRs to `upstream`.

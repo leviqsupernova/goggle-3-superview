@@ -163,3 +163,22 @@ plus a 2 s `kill -STOP` of the decoder every 90 s. New soak options: `--restart-
 | fps | 50-56 average per minute (loss + stalls + pauses injected), recovered after every fault |
 
 Not covered: WPF UI memory over hours, Windows-only behaviour, real goggles (short bench check when the bench is available).
+
+## Step 5: structure + UI (2026-11-01)
+
+UI checked through the `ui-screenshots` CI job (8 states, incl. new `08-small-window` at 860x540), not on a real screen.
+
+| Change | Proof |
+|---|---|
+| `Core/ViewerState` + `ViewerStatus`: one place decides badge, idle title/hint, light, fps; `AutoConnect` reports `ViewerStatus` | 7 tests; screenshot 02 now shows one message ("Waiting for goggles" / "Plug in the goggles"), was two contradicting ones |
+| `Core/DiagnosticLog` (last 100 lines, file written off the UI thread) moved out of `MainWindow` | 2 tests (keeps last lines + writes on close, unwritable path does not throw) |
+| WPF-UI 4.3.0 (MIT): `FluentWindow` + `TitleBar` with status badge; control bar in its own row below the video | screenshots 03-05: title and controls no longer cover the picture (goggles OSD sits at the bottom edge) |
+| Recording notice in the control bar: trimmed, full path in tooltip, elapsed time while recording | screenshot 08: trims with an ellipsis at minimum width |
+| Tutorial as dark `FluentWindow` in XAML, plain-English copy, sized to content | screenshot 07 |
+| Connect reads "Set up" while `--connect` waits for the one-time USB setup (was: hint said "click Connect" next to a Disconnect button) | build only, bench check |
+| Removed the hard-coded "1920×1080" readout (not measured); fps/bitrate hidden when there is no value | screenshots |
+| Publish ships `Licenses/WPF-UI-*`; `THIRD_PARTY_NOTICES.md` names WPF UI | script review, CI publish ran |
+
+Codex (1 review + 1 follow-up): P2 "hidden title-bar caption buttons still take clicks in fullscreen" (WPF-UI's
+caption hit test ignores `Visibility`) **kept**, fixed with `TitleBar.IsHitTestVisible = false` in fullscreen; follow-up APPROVED.
+Bench checks: fullscreen, then click where Close was (nothing happens); first-time setup via "Set up" with `--connect`.
