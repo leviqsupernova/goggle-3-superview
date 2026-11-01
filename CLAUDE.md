@@ -4,7 +4,7 @@ Fork of `knpuma/goggle-3-liveview` (MIT, by a friend of the owner). Repo: `leviq
 **Standalone fork, no merging with upstream** (decided 2026-10-31): we never pull from or send PRs to the friend's repo, so
 unneeded code is deleted, not just ignored. Only `origin` is configured; to read their history add
 `git remote add upstream https://github.com/knpuma/goggle-3-liveview.git` (fetch/diff only, never merge).
-Development on Arch Linux, the app runs on **Windows** at the drone bench, launched by the superflash tool (`~/Desktop/superflash`, separate repo) in its own window.
+Development on Arch Linux, the app runs on **Windows** at the drone bench, launched by the superflash tool (`../superflash`, sibling repo inside the `supertune` parent repo, see `../CLAUDE.md`) in its own window.
 
 ## Scope
 
