@@ -97,11 +97,11 @@ Model: Opus for steps 1-3 and structure decisions; Sonnet for 0, 4, 6, 7 and mec
 
 Deleted: Multi, macOS, Linux, ARM64 ffmpeg, Mac scripts. Kept: `LICENSE` (keep the friend's copyright line),
 `THIRD_PARTY_NOTICES.md`, root `third_party/ffmpeg` + `scripts/build-windows-decoder.sh` (LGPL source/rebuild),
-`assets/AppIcon.{ico,png}`. Still open: `docs/` website (upstream marketing, owner decides).
+`assets/AppIcon.{ico,png}`. `docs/` website deleted 2026-11-01 (owner decision, upstream Mac/Linux marketing).
 
 ## Open decisions
 
-- App/exe name in this fork (upstream: "Goggle 3 LiveView").
+- App/exe name in this fork: owner decided 2026-11-01 to keep "Goggle 3 LiveView" (no rename).
 
 ## Superflash integration contract (step 4)
 
