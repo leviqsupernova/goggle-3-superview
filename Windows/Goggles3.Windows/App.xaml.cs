@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using Wpf.Ui.Appearance;
 
 namespace Goggles3.Windows;
 public partial class App : Application
@@ -33,6 +34,8 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // Mint accent (Connect, Got it) on the dark theme from App.xaml.
+        ApplicationAccentColorManager.Apply(Color.FromRgb(0x30, 0xDB, 0xCF), ApplicationTheme.Dark, false, false);
         var window = new MainWindow();
         MainWindow = window;
         window.Show();

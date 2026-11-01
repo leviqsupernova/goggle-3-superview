@@ -18,6 +18,8 @@ Windows FFmpeg is also built from the complete, unmodified FFmpeg 8.0.3 source a
 
 The Windows app uses **.NET 10 and WPF**, open-source software from Microsoft and contributors. The runtime is bundled through `dotnet publish --self-contained`. Notices are retained in `Licenses/DotNET-THIRD-PARTY-NOTICES.txt`, `Licenses/DotNET-LICENSE.txt` and `Licenses/WPF-LICENSE.txt`. Sources: https://github.com/dotnet/runtime and https://github.com/dotnet/wpf.
 
+The Windows UI uses **WPF UI 4.3.0** (MIT), Copyright (C) 2021-2026 Leszek Pomianowski and WPF UI Contributors. License and notices: `Licenses/WPF-UI-LICENSE.md` and `Licenses/WPF-UI-THIRD-PARTY-NOTICES.txt`. Source: https://github.com/lepoco/wpfui.
+
 No proprietary DJI code or Apple fonts are redistributed. BtbN packages were investigated during development but are not included in delivered packages; the distributed decoders are the minimal builds described above.
 
 ## Linux
