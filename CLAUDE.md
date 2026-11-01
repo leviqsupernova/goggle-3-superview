@@ -17,7 +17,8 @@ Development on Arch Linux, the app runs on **Windows** at the drone bench, launc
 ```sh
 dotnet test Windows/Goggles3.Core.Tests                         # all Core tests, ~5 s; recording tests need ffmpeg on PATH
 dotnet test Windows/Goggles3.Core.Tests --filter RecordingTests # one class (focused run while iterating)
-dotnet build Windows/Goggles3.Windows -c Release                # WPF builds on Linux (EnableWindowsTargeting), cannot run here
+dotnet build Windows/Goggles3.Windows -c Release -r win-x64     # WPF builds on Linux (EnableWindowsTargeting), cannot run here;
+                                                                # -r is needed on Arch (SDK RID arch-x64 has no apphost pack)
 ```
 The whole suite is fast: run it before each commit. On Windows the tests use the bundled ffmpeg (cannot read MP4, so the
 recording tests only check "saved, non-empty" unless a full ffmpeg is on PATH).

@@ -53,8 +53,8 @@
     <TextBlock x:Name="RecordingText" Grid.Column="1" Margin="20,0" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource Muted}"
      TextTrimming="CharacterEllipsis" AutomationProperties.AutomationId="RecordingText"/>
     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" TextElement.FontSize="14" Typography.NumeralAlignment="Tabular">
-     <TextBlock x:Name="Fps" Text="—" MinWidth="56" TextAlignment="Right" ToolTip="Frames shown per second"/>
-     <TextBlock x:Name="Bitrate" Text="—" MinWidth="88" TextAlignment="Right" Margin="12,0,0,0" ToolTip="Video data from the goggles"/>
+     <TextBlock x:Name="Fps" Visibility="Collapsed" MinWidth="56" TextAlignment="Right" ToolTip="Frames shown per second"/>
+     <TextBlock x:Name="Bitrate" Visibility="Collapsed" MinWidth="88" TextAlignment="Right" Margin="12,0,0,0" ToolTip="Video data from the goggles"/>
     </StackPanel>
    </Grid>
   </Border>

@@ -217,8 +217,8 @@ public partial class MainWindow
         log.Flush();
         int frames = state.TakeFrameCount();
         bool video = state.HasVideo(Now);
-        Fps.Text = video ? $"{frames} fps" : "—";
-        Bitrate.Text = video && !replay && rate > 0 ? $"{rate:F1} Mbps" : "—";
+        Fps.Text = $"{frames} fps"; Fps.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+        Bitrate.Text = $"{rate:F1} Mbps"; Bitrate.Visibility = video && !replay && rate > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (recording) RecordingText.Text = $"Recording · {recordingClock.Elapsed:h\\:mm\\:ss}";
         Render();
     }
