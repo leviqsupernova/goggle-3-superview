@@ -9,7 +9,7 @@ namespace Goggles3.Core.Tests;
 public sealed class AutoConnectTests
 {
     private static readonly IPAddress Local = IPAddress.Parse("192.168.60.1");
-    private readonly ConcurrentQueue<string> statuses = new();
+    private readonly ConcurrentQueue<ViewerStatus> statuses = new();
 
     private AutoConnect Create(Func<int, Adapter> find, Func<int, CancellationToken, Task<string>> run) =>
         new(_ => Task.FromResult(find(Interlocked.Increment(ref finds))),
@@ -32,15 +32,15 @@ public sealed class AutoConnectTests
         var loop = Create(n => n < 3 ? new Adapter(AdapterState.Missing) : new Adapter(AdapterState.Ready, Local),
             (_, token) => Task.Delay(Timeout.Infinite, token).ContinueWith(_ => "stopped", TaskScheduler.Default));
         await RunUntil(loop, () => sessions == 1);
-        Assert.Contains(AutoConnect.WaitingForGoggles, statuses);
-        Assert.Contains(AutoConnect.Connecting, statuses);
+        Assert.Contains(ViewerStatus.WaitingForGoggles, statuses);
+        Assert.Contains(ViewerStatus.Connecting, statuses);
     }
 
     [Fact] public async Task RestartsTheSession_WhenItEnds()
     {
         var loop = Create(_ => new Adapter(AdapterState.Ready, Local), (_, _) => Task.FromResult("The decoder exited with code 137."));
         await RunUntil(loop, () => sessions >= 3);
-        Assert.Contains(statuses, s => s.StartsWith("The decoder exited with code 137.", StringComparison.Ordinal) && s.Contains("Reconnecting", StringComparison.Ordinal));
+        Assert.Contains(ViewerStatus.Reconnecting("The decoder exited with code 137."), statuses);
     }
 
     [Fact] public async Task KeepsTrying_WhenFindingOrStartingFails()
@@ -48,8 +48,8 @@ public sealed class AutoConnectTests
         var loop = Create(n => n == 1 ? throw new IOException("Windows cannot activate the goggles USB device (code 10).") : new Adapter(AdapterState.Ready, Local),
             (n, _) => n == 1 ? throw new FileNotFoundException("Decoder missing.") : Task.FromResult("ended"));
         await RunUntil(loop, () => sessions >= 2);
-        Assert.Contains(statuses, s => s.StartsWith("Windows cannot activate the goggles USB device (code 10).", StringComparison.Ordinal));
-        Assert.Contains(statuses, s => s.StartsWith("Decoder missing.", StringComparison.Ordinal));
+        Assert.Contains(ViewerStatus.Retrying("Windows cannot activate the goggles USB device (code 10)."), statuses);
+        Assert.Contains(ViewerStatus.Retrying("Decoder missing."), statuses);
     }
 
     [Fact] public async Task NeverStartsASession_WhenTheAdapterNeedsSetup()
@@ -57,7 +57,7 @@ public sealed class AutoConnectTests
         var loop = Create(_ => new Adapter(AdapterState.NeedsSetup), (_, _) => Task.FromResult("x"));
         await RunUntil(loop, () => finds >= 3);
         Assert.Equal(0, sessions);
-        Assert.Contains(AutoConnect.NeedsSetup, statuses);
+        Assert.Contains(ViewerStatus.NeedsSetup, statuses);
     }
 
     [Fact] public async Task Cancel_StopsARunningSession()
