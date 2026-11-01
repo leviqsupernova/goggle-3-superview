@@ -4,31 +4,20 @@
 
 Copyright (c) 2000–2026 the FFmpeg developers.
 
-Goggle 3 LiveView runs a separately built FFmpeg executable, without GPL or non-free components. License: **GNU Lesser General Public License, version 2.1 or later**. The license text is in `third_party/ffmpeg/COPYING.LGPLv2.1` and the app bundle’s Resources/Licenses directory.
+Goggle 3 SuperView runs a separately built Windows x64 FFmpeg executable (`ffmpeg/ffmpeg.exe`), without GPL or non-free components. License: **GNU Lesser General Public License, version 2.1 or later**. The license text is in `ffmpeg/COPYING.LGPLv2.1` in the download and in `third_party/ffmpeg/COPYING.LGPLv2.1` in the source.
 
 - Complete original source: https://ffmpeg.org/releases/ffmpeg-8.0.3.tar.xz
 - SHA-256: `6136812ea6d4e68bdba27e33c2a94382711cdf4f8602ffef056ff792bd6f9818`
-- Build configuration: `scripts/build-decoder.sh`.
-- FFmpeg source is unmodified; components are selected through build configuration.
-- The matching full FFmpeg source archive is provided with each release. No Homebrew shared libraries or proprietary reference-app components are distributed.
+- Build: `scripts/build-windows-decoder.sh` with llvm-mingw 20261006. The FFmpeg source is unmodified; components are selected through build configuration. No external libraries.
+- The decoder is a separate executable and can be replaced by another build. Replacing it means updating this file.
 
-## Windows
+## Windows app
 
-Windows FFmpeg is also built from the complete, unmodified FFmpeg 8.0.3 source above using `scripts/build-windows-decoder.sh` and llvm-mingw 20261006. It includes no external libraries, GPL or non-free components. Windows recording uses FFmpeg’s native MPEG-4 encoder instead of VideoToolbox. The replaceable x64 and ARM64 decoders are separate executables under LGPL 2.1 or later. Exact configuration is in the build script.
+The app uses **.NET 10 and WPF**, open-source software from Microsoft and contributors. The runtime is bundled through `dotnet publish --self-contained`. Notices are in `Licenses/DotNET-THIRD-PARTY-NOTICES.txt`, `Licenses/DotNET-LICENSE.txt` and `Licenses/WPF-LICENSE.txt`. Sources: https://github.com/dotnet/runtime and https://github.com/dotnet/wpf.
 
-The Windows app uses **.NET 10 and WPF**, open-source software from Microsoft and contributors. The runtime is bundled through `dotnet publish --self-contained`. Notices are retained in `Licenses/DotNET-THIRD-PARTY-NOTICES.txt`, `Licenses/DotNET-LICENSE.txt` and `Licenses/WPF-LICENSE.txt`. Sources: https://github.com/dotnet/runtime and https://github.com/dotnet/wpf.
+The UI uses **WPF UI 4.3.0** (MIT), Copyright (C) 2021-2026 Leszek Pomianowski and WPF UI Contributors. License and notices: `Licenses/WPF-UI-LICENSE.md` and `Licenses/WPF-UI-THIRD-PARTY-NOTICES.txt`. Source: https://github.com/lepoco/wpfui.
 
-The Windows UI uses **WPF UI 4.3.0** (MIT), Copyright (C) 2021-2026 Leszek Pomianowski and WPF UI Contributors. License and notices: `Licenses/WPF-UI-LICENSE.md` and `Licenses/WPF-UI-THIRD-PARTY-NOTICES.txt`. Source: https://github.com/lepoco/wpfui.
-
-No proprietary DJI code or Apple fonts are redistributed. BtbN packages were investigated during development but are not included in delivered packages; the distributed decoders are the minimal builds described above.
-
-## Linux
-
-The Linux 0.3.3 packages use Avalonia 11.3.22 (MIT) and a self-contained .NET 10 runtime (MIT and third-party notices). They include SkiaSharp 2.88.9, HarfBuzzSharp 8.3.1.1, MicroCom.Runtime 0.11.0 and Tmds.DBus.Protocol 0.21.3. Original licenses and notices are retained in each package's `Licenses/` directory, including Avalonia's upstream third-party notices and the exact runtime's notices.
-
-Avalonia license/notice snapshot: upstream commit `627ae9ef921621e27e7aa58df2796fbadb50af88`. Tmds.DBus license snapshot: `8cb04f66c330b64244e996ff68f685f27f7381a0`. Sources: https://github.com/AvaloniaUI/Avalonia, https://github.com/dotnet/runtime, https://github.com/mono/SkiaSharp, https://github.com/kekekeks/MicroCom and https://github.com/tmds/Tmds.DBus.
-
-**No FFmpeg executable is included in Linux downloads.** The app launches `/usr/bin/ffmpeg` installed by the user's distribution. Its version, license configuration and source are supplied by that distribution; the Mac/Windows FFmpeg build description above does not apply to it. Generated CI test media are not shipped.
+No proprietary DJI code is redistributed.
 
 ## Research references, not bundled dependencies
 
