@@ -30,7 +30,7 @@ public sealed class UdpVideoReceiver
         byte[] handshake = protocol.CreateHandshake();
         var watch = Stopwatch.StartNew();
         double lastStats = 0, lastSubscribe = -1, lastVideo = 0;
-        long lastBytes = 0;
+        long lastBytes = 0, lastLost = 0;
         bool started = false;
         while (!token.IsCancellationRequested)
         {
@@ -62,7 +62,9 @@ public sealed class UdpVideoReceiver
             if (now - lastStats >= 1)
             {
                 Bitrate?.Invoke((protocol.VideoBytes - lastBytes) * 8 / (now - lastStats) / 1_000_000);
-                lastStats = now; lastBytes = protocol.VideoBytes;
+                // The goggles never send keyframes: every lost unit smears the picture until their refresh sweep repairs it.
+                if (protocol.LostUnits > lastLost) Log?.Invoke($"Lost {protocol.LostUnits - lastLost} incomplete video unit(s): the picture may break up.");
+                lastStats = now; lastBytes = protocol.VideoBytes; lastLost = protocol.LostUnits;
             }
         }
         token.ThrowIfCancellationRequested();

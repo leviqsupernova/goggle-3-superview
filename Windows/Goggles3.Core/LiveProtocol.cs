@@ -18,6 +18,8 @@ public sealed class LiveProtocol
 
     public LiveProtocol(ushort? sessionId = null) => session = sessionId ?? (ushort)RandomNumberGenerator.GetInt32(65536);
     public long VideoBytes { get; private set; }
+    /// <summary>Units dropped from the cache before all their parts arrived: video the decoder never saw.</summary>
+    public long LostUnits { get; private set; }
 
     /// <summary>Forget cached units: a restarted stream may reuse sequence numbers.</summary>
     public void Reset() { units.Clear(); order.Clear(); }
@@ -51,13 +53,16 @@ public sealed class LiveProtocol
         if (message[6] == 0) return new(null, null, true);
         if (message[6] != 2 || message.Length < 20) return new(null, null, false);
         int count = message[17] & 0x7f;
-        int part = (message[17] >> 7) | (message[18] << 1) | (message[19] << 9);
+        // Part index = 6 bits: bit 7 of byte 17 + bits 0-4 of byte 18. Real goggles never put more than 63 parts in a
+        // unit (bigger frames continue in the next unit) and in some sessions set bit 5 of byte 18 on every 10th unit
+        // (meaning unknown; bench 2026-11-02). Reading that bit as part of the index dropped those frames.
+        int part = ((message[17] >> 7) | (message[18] << 1)) & 0x3f;
         if (count == 0 || part >= count) return new(null, null, false);
         ushort sequence = BinaryPrimitives.ReadUInt16LittleEndian(message[4..]);
         ushort key = unchecked((ushort)((sequence & 0xfff8) - part * 8));
         if (!units.TryGetValue(key, out Unit? unit))
         {
-            if (units.Count >= 32) units.Remove(order.Dequeue());
+            if (units.Count >= 32 && units.Remove(order.Dequeue(), out Unit? evicted) && !evicted.Complete) LostUnits++;
             unit = new Unit(count); units.Add(key, unit); order.Enqueue(key);
         }
         if (unit.Parts.Length != count) return new(null, null, false);

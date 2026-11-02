@@ -19,14 +19,17 @@ public sealed class FakeGogglesTests
         Assert.Equal(Stream, units.SelectMany(u => u.ToArray()).ToArray());
     }
 
-    [Fact] public void Packetize_SplitsLargeFramesIntoUnitsTheReceiverReassembles()
+    [Theory] [InlineData(false)] [InlineData(true)]
+    public void Packetize_SplitsLargeFramesIntoUnitsTheReceiverReassembles(bool flagged)
     {
         byte[] frame = Enumerable.Range(0, 3000).Select(i => (byte)i).ToArray();
         ushort sequence = 0xfff0; // crosses the 16-bit wrap
-        var packets = FakeGoggles.Packetize(frame, 7, ref sequence, 10); // 300 parts -> units of 127+127+46
+        var packets = FakeGoggles.Packetize(frame, 7, ref sequence, 10, flagged); // 300 parts -> units of 63+63+63+63+48
+        Assert.Equal(300, packets.Count);
         var protocol = new LiveProtocol(7);
-        var video = packets.Select(p => protocol.Accept(p).Video).Where(v => v != null).SelectMany(v => v!).ToArray();
-        Assert.Equal(frame, video);
+        var results = packets.Select(p => protocol.Accept(p)).ToList();
+        Assert.Equal(frame, results.Where(r => r.Video != null).SelectMany(r => r.Video!).ToArray());
+        Assert.Equal(5, results.Count(r => r.Acknowledgement != null)); // one ACK per unit
     }
 
     [Fact] public async Task FakeGoggles_StreamsAFileThroughUdpVideoReceiver_ByteForByte()

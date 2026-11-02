@@ -38,9 +38,12 @@ Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: 
 - `UdpVideoReceiver`: local `192.168.60.1:12346` <-> goggles `192.168.60.2:9003`. Handshake once per second until
   video arrives, again after 2 s without video; ACK after the last part of each unit. ICMP unreachable is ignored.
 - `LiveProtocol`: header (length, session id, XOR byte 7), type 2 = video part, reassembles units (max 32 cached) into
-  H.264 Annex-B chunks.
-- `FfmpegVideoSession`: UDP -> `H264Queue` (never blocks UDP; full = skip to next keyframe) -> `ffmpeg.exe` stdin;
-  stdout = 1920x1080 BGRA -> `LatestFrame` triple buffer -> `Frame` event, UI calls `TakeLatestFrame()`.
+  H.264 Annex-B chunks. Part index = 6 bits (byte 17 bit 7 + byte 18 bits 0-4); byte 18 bit 5 is a flag the goggles
+  set on every 10th unit in some sessions (meaning unknown). Max 63 parts per unit; bigger frames continue in the next
+  unit. Type 1 = goggles status every 100 ms (echoes the last ACKed seq), ignored. `LostUnits` -> diagnostics line.
+- `FfmpegVideoSession`: UDP -> `H264Queue` (never blocks UDP; 30 units ~ 1 s, full = skip to next keyframe) -> `ffmpeg.exe`
+  stdin (`-threads 1`); stdout = 1920x1080 I420 -> `Yuv420.ToBgra` (AVX2, BT.709 tv range, 3 ms) -> `LatestFrame` triple
+  buffer -> `Frame` event, UI calls `TakeLatestFrame()`.
   `Mp4Recorder`: second ffmpeg, copies the H.264 (`-c copy`) into a fragmented MP4 (playable even if killed).
 - `AdapterLocator`: finds the adapter via registry PnP id + cfgmgr32 (Missing / NeedsSetup / Ready), runs `Prepare-Usb.ps1`
   elevated only after a Connect click. `AutoConnect` (Core): find -> session -> retry every 2 s, status text only.
@@ -57,6 +60,43 @@ MP4 (+ cached SPS/PPS), recorder lifecycle, triple-buffered frames, decoder star
 (WPF/PowerShell): close waits for save, Stop without video, logs off UI thread, `Prepare-Usb.ps1` prefix guard.
 Open: #11 decoder restart -> step 4 auto-reconnect; #12/#13 plausible only; constant 60 fps recording timestamps.
 Each fix needs a test or soak measurement that shows the problem first. "Fixed" means measured, not "looks right".
+
+## Breakup + delay fix (2026-11-02, measured on the bench PC with real Goggles 3)
+
+Operator report: "video breaks up badly when the camera moves; big delay (~1 s felt)". Bench PC: i5-6500T, 4 cores.
+
+**Real stream** (Python capture of the UDP session): H.264 High 1080p **30 fps** (not 60), 8-21 Mbit/s, one slice per
+frame, NAL order slice + SEI(type 240) + AUD per frame, SPS/PPS every ~15 frames. **Only P slices: no IDR, no I frame, no
+recovery point** (intra refresh, poc_type 2, 1 reference frame). A lost frame therefore smears until the refresh sweep
+repairs it (~0.5 s), and motion drags the damage across the picture. ffmpeg needs `+showall` or it outputs no frame.
+
+**Cause 1, breakup:** in some sessions the goggles set bit 5 of byte 18 on every 10th unit. The old 15-bit part field read
+it as part 64+, so `part >= count` dropped the whole unit (a normal frame) and never ACKed it. Fix: 6-bit part index
+(see How it works). Real capture replayed through both versions: old 269/299 frames, new 299/299, every unit ACKed, 0 lost.
+Old viewer's fps readout showed 24-28, new 29-31. No retransmits seen (repeated seqs are the 16-bit wrap, ~9.4 s).
+
+**Cause 2, delay:** the decoder setup. `-threads 2` (frame threading) held 3 frames; 8 MB BGRA frames through ffmpeg's
+4 KB stdout pipe cost ffmpeg ~31 ms CPU per frame (~95 % of a core at 30 fps). Fix: `-threads 1`, I420 output (3 MB),
+`Yuv420.ToBgra` in Core (AVX2, 3.1 ms per frame Release), live queue 240 -> 30 units (8 s -> ~1 s of video).
+
+| Measured | Old | New |
+|---|---|---|
+| Camera to screen (drone camera on an on-screen ms clock, nested clocks in one screenshot) | 310-390 ms | ~237 ms |
+| Decoder pipeline (captured units replayed over UDP at real timing, UDP in -> `Frame` event) | 108 ms | 49 ms |
+| Live CPU: ffmpeg / whole machine | 120 % / 76 % | 40 % / 47 % |
+
+Checks: 55/55 Core tests, WPF Release build 0 warnings, fake-goggles soak (real capture at 30 fps, flags on) clean and
+with 0.5 % loss (new "Lost N incomplete video unit(s)" diagnostics line fires, no restarts); heap pattern same as before.
+`FakeGoggles` now sends at most 63 parts per unit and flags every 10th unit, like the real goggles.
+
+**Still open:**
+- **Recording is broken with real goggles:** `-c copy` waits for a keyframe that never comes -> 759-byte MP4 with no
+  video, and the viewer reports it as saved.
+- ffmpeg's CLI holds one decoded frame (+33 ms) whatever the flags (`low_delay`, `chunks`, `output_corrupt`, no `-r`;
+  the demux/parse path alone is 0 ms). Removing it needs in-process decoding (libavcodec or Media Foundation).
+- The bundled ffmpeg has no SIMD (`--disable-x86asm`) and no hwaccel: a standard LGPL build would cut CPU and give
+  headroom for heavy motion (downloading one was blocked in that session: owner decision).
+- Most of the remaining ~237 ms is camera + radio link + goggles, before the PC; the viewer cannot change it.
 
 ## CI
 
