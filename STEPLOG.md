@@ -196,3 +196,24 @@ Not done, owner decides: `docs/` website (upstream marketing for Mac/Linux, stil
 first tag/release. The zip is unsigned: Windows SmartScreen may warn on first run.
 
 Owner decisions 2026-11-01: `docs/` deleted; no rename (exe stays "Goggle 3 LiveView"); first release is a pre-release, bench checks pending.
+
+## Image quality step 1 (2026-11-02)
+
+Owner: picture visibly worse than other Goggles 3 apps; also asked about a faster codec / H.265. Research before code:
+
+| Source | Finding |
+|---|---|
+| [wllm-rbnt/third-eye](https://github.com/wllm-rbnt/third-eye) PROTOCOL.md §5, §12, §13 | Phone link (AOA/iAP2 via a Linux USB gadget), H.264 "not H.265", always 1080p30, no mode command. Its UDP 9003 summary agrees with `LiveProtocol`; nothing contradicts it |
+| upstream `knpuma/goggle-3-liveview` main + multi-v0.5.0 | Windows decoder = our pre-fix setup (`-threads 2`, BGRA via pipe, `LowQuality`); no hwaccel |
+| Codex (one investigation, no repo access: sandbox blocked local reads) | ranked: SIMD build < d3d11va < in-process libavcodec < GPU presentation; `h264_cuvid` display delay 4 without LOW_DELAY; `+showall` cannot guarantee hardware recovery without IDR; 100 Hz display shows 30 fps as 3/3/4 refreshes |
+| CosmoStreamer site | Pi 4B, HDMI out, no latency number published; architecture consistent with the phone link (third-eye §12) |
+
+| Change | Proof |
+|---|---|
+| `Yuv420`: bilinear chroma for H.264 siting (vertical (3a+b+2)/4, horizontal mean), was nearest | new `ToBgra_BlendsChromaAcrossAColourEdge` (red on old code: blue 0 at the mid-edge pixel, wants 128); formula check now against the bilinear definition (measured error on a random 1080p frame: G ≤ 1, R ≤ 2, B ≤ 3 on 0.1 %); SIMD = scalar bytes; 2.50 ms vs 2.44 ms per frame (Release, bench PC) |
+| `MainWindow.xaml`: `BitmapScalingMode` HighQuality | WPF window on the bench PC (GTX 1050 Ti), 1080p test pattern shown at 1280x720: LowQuality turns 1-px diagonal lines into horizontal moire bands, HighQuality keeps them |
+
+Found on the way (not fixed here): the bundled ffmpeg's scaler scrambles rows on every upscale (see CLAUDE.md "Still
+open"); `--replay` of the 320x180 test clip is unusable for visual checks on this build. Live 1080p is a byte-identical
+passthrough. Bench check pending: OSD text and fine detail with real goggles, windowed and fullscreen.
+

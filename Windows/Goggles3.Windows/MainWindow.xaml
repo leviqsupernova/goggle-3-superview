@@ -28,7 +28,8 @@
      <TextBlock x:Name="IdleHint" Text="Use a USB-C data cable. Tutorial shows the goggles settings." FontSize="14" Foreground="{StaticResource Muted}" Margin="0,10,0,0" TextAlignment="Center" TextWrapping="Wrap"/>
     </StackPanel>
    </Grid>
-   <Image x:Name="Video" Stretch="Uniform" Visibility="Collapsed" RenderOptions.BitmapScalingMode="LowQuality"/>
+   <!-- HighQuality: the window always shrinks the 1080p video; LowQuality turned fine detail into moire (2026-11-02). -->
+   <Image x:Name="Video" Stretch="Uniform" Visibility="Collapsed" RenderOptions.BitmapScalingMode="HighQuality"/>
   </Grid>
 
   <!-- Controls below the video: the goggles OSD sits at the bottom edge of the picture. -->
