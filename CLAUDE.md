@@ -111,6 +111,7 @@ cannot be the USB device for that link.
 - Step 1 (done, bench check pending): WPF `BitmapScalingMode` LowQuality -> HighQuality (window always downscales;
   LowQuality turned fine lines into moire, checked on the bench PC's GTX 1050 Ti); `Yuv420` chroma bilinear instead
   of nearest (H.264 siting, exact integer rounding, SIMD = scalar bytes), same speed (2.50 vs 2.44 ms).
+  Cost: HighQuality is CPU work in WPF: windowed +~34 % of one core (30 -> 64 %), fullscreen 1:1 no change.
 - Step B1 (next): own LGPL ffmpeg 8.0.3 build with x86asm + `d3d11va` (vendor neutral: NVIDIA/AMD/Intel; not
   `h264_cuvid`, which buffers 4 frames without LOW_DELAY). Measure vs software; test no-IDR start + loss on hardware.
 - Step C (owner decides after B1 numbers): in-process libavcodec (FFmpeg.AutoGen) to drop the CLI's held frame.

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
@@ -22,6 +23,8 @@ public static class Yuv420
     public static void ToBgra(ReadOnlySpan<byte> i420, Span<byte> bgra, int width, int height) =>
         Convert(i420, bgra, width, height, Avx2.IsSupported);
 
+    // Fully optimised from the first call: tier-0 code made the first frames ~3x slower (CI speed test flaked at 17.9 ms).
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     internal static unsafe void Convert(ReadOnlySpan<byte> i420, Span<byte> bgra, int width, int height, bool simd)
     {
         if (width <= 0 || height <= 0 || width % 2 != 0 || height % 2 != 0) throw new ArgumentException("Width and height must be even.");
@@ -51,7 +54,8 @@ public static class Yuv420
     private static int Average(int a, int b) => (a + b + 1) >> 1;
 
     /// <summary>One full-width chroma row for a luma row: vertical (3 own + 1 other + 2) / 4, then horizontal means.</summary>
-    private static unsafe void Upsample(byte* own, byte* other, byte* half, byte* full, int chroma, bool simd)
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    internal static unsafe void Upsample(byte* own, byte* other, byte* half, byte* full, int chroma, bool simd)
     {
         int k = 0;
         if (simd)
@@ -93,6 +97,7 @@ public static class Yuv420
     private static int Clamp(int value) => value < 0 ? 0 : value > 255 ? 255 : value;
 
     /// <summary>8 pixels per step from full-width chroma rows; returns the first x it did not convert.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static unsafe int Row8(byte* yRow, byte* uRow, byte* vRow, uint* outRow, int width)
     {
         Vector256<int> c128 = Vector256.Create(128), c16 = Vector256.Create(16), round = Vector256.Create(Round);

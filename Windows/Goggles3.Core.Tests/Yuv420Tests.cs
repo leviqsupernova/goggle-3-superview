@@ -101,6 +101,30 @@ public sealed class Yuv420Tests
         Assert.InRange(Red(10, 2), 224, 232); // V = 184 -> red 228 (nearest: 255)
     }
 
+    [Theory] [InlineData(true, 40)] [InlineData(false, 40)] [InlineData(true, 1)] [InlineData(true, 17)]
+    public unsafe void Upsample_RoundsHalfUpExactly(bool simd, int chroma)
+    {
+        // Codex review: the float check above has a tolerance, so a rounding slip shared by both paths could hide.
+        // Expected values from round-half-up of the exact means, written independently of the shifts in Yuv420.
+        if (simd && !Avx2.IsSupported) return;
+        var random = new Random(chroma);
+        byte[] own = new byte[chroma], other = new byte[chroma], half = new byte[chroma + 32], full = new byte[2 * chroma + 64];
+        for (int trial = 0; trial < 200; trial++)
+        {
+            for (int k = 0; k < chroma; k++) // small values: every remainder of the /4 and /2 shows up often
+            {
+                own[k] = (byte)(random.Next(4) + (trial % 2) * 250); other[k] = (byte)(random.Next(6) + (trial % 2) * 250);
+            }
+            fixed (byte* o = own, t = other, h = half, f = full) Yuv420.Upsample(o, t, h, f, chroma, simd);
+            int Vertical(int k) => (int)Math.Floor((3.0 * own[k] + other[k]) / 4 + 0.5);
+            for (int k = 0; k < chroma; k++)
+            {
+                Assert.Equal(Vertical(k), full[2 * k]);
+                Assert.Equal((int)Math.Floor((Vertical(k) + Vertical(Math.Min(k + 1, chroma - 1))) / 2.0 + 0.5), full[2 * k + 1]);
+            }
+        }
+    }
+
     private static int Clamp(double value) => (int)Math.Round(Math.Clamp(value, 0, 255));
 
     [Fact] public void ToBgra_RejectsOddSizesAndShortBuffers()
