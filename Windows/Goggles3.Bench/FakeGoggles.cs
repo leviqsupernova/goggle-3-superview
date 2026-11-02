@@ -108,7 +108,8 @@ public sealed class FakeGoggles(FakeOptions options)
             double due = start + frame / options.Fps - clock.Elapsed.TotalSeconds;
             if (due > 0) await Task.Delay(TimeSpan.FromSeconds(due), token).ConfigureAwait(false);
             IPEndPoint target = viewer!;
-            foreach (byte[] packet in Packetize(units[index].Span, (ushort)Volatile.Read(ref session), ref sequence, options.PartSize))
+            // Real goggles flag every 10th unit in some sessions (bench 2026-11-02): always do it here so soaks cover it.
+            foreach (byte[] packet in Packetize(units[index].Span, (ushort)Volatile.Read(ref session), ref sequence, options.PartSize, frame % 10 == 9))
             {
                 Interlocked.Increment(ref packets);
                 if (random.NextDouble() * 100 < options.LossPercent) { Interlocked.Increment(ref dropped); continue; }
@@ -150,11 +151,14 @@ public sealed class FakeGoggles(FakeOptions options)
         return units;
     }
 
-    /// <summary>Type-2 parts as LiveProtocol expects them; a frame over 127 parts is sent as several units.</summary>
-    public static List<byte[]> Packetize(ReadOnlySpan<byte> frame, ushort session, ref ushort sequence, int partSize)
+    /// <summary>
+    /// Type-2 parts as the real goggles send them: a frame over 63 parts is sent as several units;
+    /// <paramref name="flagged"/> sets bit 5 of byte 18 (seen on every 10th unit from real goggles, meaning unknown).
+    /// </summary>
+    public static List<byte[]> Packetize(ReadOnlySpan<byte> frame, ushort session, ref ushort sequence, int partSize, bool flagged = false)
     {
         var result = new List<byte[]>();
-        int maxUnit = 127 * partSize;
+        int maxUnit = 63 * partSize;
         for (int offset = 0; offset < frame.Length; offset += maxUnit)
         {
             ReadOnlySpan<byte> unit = frame.Slice(offset, Math.Min(maxUnit, frame.Length - offset));
@@ -168,8 +172,7 @@ public sealed class FakeGoggles(FakeOptions options)
                 BinaryPrimitives.WriteUInt16LittleEndian(packet.AsSpan(4), unchecked((ushort)(sequence + part * 8)));
                 packet[6] = 2;
                 packet[17] = (byte)(count | ((part & 1) << 7));
-                packet[18] = (byte)(part >> 1);
-                packet[19] = (byte)(part >> 9);
+                packet[18] = (byte)((part >> 1) | (flagged ? 0x20 : 0));
                 payload.CopyTo(packet.AsSpan(20));
                 packet[7] = LiveProtocol.HeaderXor(packet);
                 result.Add(packet);

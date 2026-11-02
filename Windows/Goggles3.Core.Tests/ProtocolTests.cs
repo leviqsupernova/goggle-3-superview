@@ -9,7 +9,7 @@ namespace Goggles3.Core.Tests;
 public sealed class ProtocolTests
 {
     private const ushort Session = 0xdd3a;
-    private static byte[] Packet(int part = 0, int count = 1, ushort sequence = 0x1000, byte[]? payload = null)
+    private static byte[] Packet(int part = 0, int count = 1, ushort sequence = 0x1000, byte[]? payload = null, bool flagged = false)
     {
         payload ??= [0,0,0,1,0x65];
         var bytes = new byte[20 + payload.Length];
@@ -18,7 +18,7 @@ public sealed class ProtocolTests
         BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4),sequence);
         bytes[6] = 2; bytes[7] = LiveProtocol.HeaderXor(bytes);
         bytes[17] = (byte)(count | ((part & 1) << 7));
-        bytes[18] = (byte)(part >> 1); bytes[19] = (byte)(part >> 9);
+        bytes[18] = (byte)((part >> 1) | (flagged ? 0x20 : 0)); bytes[19] = (byte)(part >> 9);
         payload.CopyTo(bytes,20); return bytes;
     }
 
@@ -45,6 +45,25 @@ public sealed class ProtocolTests
         Assert.Null(receiver.Accept(last).Video); Assert.Null(receiver.Accept(last).Video);
         Assert.Equal(new byte[] {1,2,3,4},receiver.Accept(Packet(0,2,0x1000,[1,2])).Video);
         Assert.Null(receiver.Accept(last).Video); Assert.Equal(4,receiver.VideoBytes);
+    }
+    // Real Goggles 3 (bench 2026-11-02): in some sessions every 10th unit has bit 5 of byte 18 set. Its parts then read
+    // 64..count+63 with the old 15-bit part field, so the whole unit (a normal frame) was dropped and never ACKed.
+    [Fact] public void Accept_AssemblesAndAcksFlaggedUnit_WhenByte18FlagBitIsSet()
+    {
+        var receiver = new LiveProtocol(Session);
+        Assert.Null(receiver.Accept(Packet(0,3,0x1000,[1],flagged: true)).Video);
+        Assert.Null(receiver.Accept(Packet(1,3,0x1008,[2],flagged: true)).Video);
+        PacketResult last = receiver.Accept(Packet(2,3,0x1010,[3],flagged: true));
+        Assert.Equal(new byte[] {1,2,3},last.Video);
+        Assert.NotNull(last.Acknowledgement);
+        Assert.Equal((ushort)0x1010,BinaryPrimitives.ReadUInt16LittleEndian(last.Acknowledgement.AsSpan(8)));
+    }
+    [Fact] public void Accept_CountsLostUnits_WhenAnIncompleteUnitIsEvicted()
+    {
+        var receiver = new LiveProtocol(Session);
+        Assert.Null(receiver.Accept(Packet(0,2,0x0000,[1])).Video); // never completed
+        for (int i = 1; i <= 32; i++) Assert.NotNull(receiver.Accept(Packet(0,1,(ushort)(i*16),[1])).Video);
+        Assert.Equal(1,receiver.LostUnits);
     }
     [Fact] public void Accept_ReassemblesAcrossSequenceWrap_WhenUnitCrosses65535()
     {

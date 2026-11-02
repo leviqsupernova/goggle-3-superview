@@ -5,6 +5,17 @@ namespace Goggles3.Core;
 public sealed class FfmpegVideoSession : IAsyncDisposable
 {
     public const int Width = 1920, Height = 1080, FrameSize = Width * Height * 4;
+    /// <summary>H.264 units waiting for the live decoder before it skips to the next keyframe (about 1 s of video).</summary>
+    internal const int LiveQueueUnits = 30;
+    /// <summary>
+    /// Decoder arguments. Latency per frame, real goggles stream replayed on the bench PC (2026-11-02), UDP in to
+    /// <see cref="Frame"/>: 108 ms with "-threads 2" + BGRA output (frame threading holds frames, 8 MB per frame through
+    /// the pipe). One thread + I420 output, converted by <see cref="Yuv420"/>: see CLAUDE.md "Bench results".
+    /// "+showall": the goggles never send an IDR or recovery point; without it ffmpeg outputs no frame at all.
+    /// </summary>
+    internal static readonly string[] DecoderArguments = ["-hide_banner","-loglevel","error","-flags2","+showall",
+        "-threads","1","-probesize","65536","-analyzeduration","0","-f","h264","-r","60","-i","pipe:0",
+        "-an","-pix_fmt","yuv420p","-vf","scale=1920:1080","-fps_mode","passthrough","-flush_packets","1","-f","rawvideo","pipe:1"];
     private readonly string decoderPath;
     private readonly CancellationTokenSource lifetime = new();
     private Process? decoder;
@@ -32,9 +43,10 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
         receiver.Log += text => Log?.Invoke(text);
         Begin(async (feed, token) =>
         {
-            // ~4 s at 60 units/s: rides out decoder hiccups without blocking UDP reception or ACKs.
+            // Never blocks UDP reception or ACKs. Small on purpose: everything queued here is delay on screen, so a decoder
+            // that falls more than ~1 s behind skips ahead instead of showing old video (the goggles send ~30 units/s).
             // Starts at a keyframe: a decoder joining mid-GOP logs hundreds of "non-existing PPS" errors.
-            var queue = new H264Queue(240, text => Log?.Invoke(text), startAtKeyframe: true);
+            var queue = new H264Queue(LiveQueueUnits, text => Log?.Invoke(text), startAtKeyframe: true);
             Task receiving = Task.Run(async () =>
             {
                 // The recorder gets every chunk before the decoder queue: a stalled decoder must not cut the recording.
@@ -79,9 +91,7 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
     private void Begin(Func<Func<byte[], CancellationToken, ValueTask>, CancellationToken, Task> source, bool paced = false)
     {
         if (worker != null) throw new InvalidOperationException("The session is already running.");
-        decoder = CreateProcess(decoderPath, ["-hide_banner","-loglevel","error","-flags2","+showall",
-            "-threads","2","-probesize","65536","-analyzeduration","0","-f","h264","-r","60","-i","pipe:0",
-            "-an","-pix_fmt","bgra","-vf","scale=1920:1080","-fps_mode","passthrough","-f","rawvideo","pipe:1"]);
+        decoder = CreateProcess(decoderPath, DecoderArguments);
         decoder.Start();
         Process active = decoder;
         worker = Task.Run(async () =>
@@ -99,17 +109,18 @@ public sealed class FfmpegVideoSession : IAsyncDisposable
             try
             {
                 var watch = Stopwatch.StartNew(); long frames = 0;
+                var yuv = new byte[Yuv420.Size(Width, Height)];
                 while (!lifetime.IsCancellationRequested)
                 {
-                    byte[] pixels = latest.Back;
                     int offset = 0;
-                    while (offset < pixels.Length)
+                    while (offset < yuv.Length)
                     {
-                        int read = await active.StandardOutput.BaseStream.ReadAsync(pixels.AsMemory(offset), lifetime.Token).ConfigureAwait(false);
+                        int read = await active.StandardOutput.BaseStream.ReadAsync(yuv.AsMemory(offset), lifetime.Token).ConfigureAwait(false);
                         if (read == 0) break;
                         offset += read;
                     }
-                    if (offset != pixels.Length) break;
+                    if (offset != yuv.Length) break;
+                    Yuv420.ToBgra(yuv, latest.Back, Width, Height);
                     if (paced)
                     {
                         double delay = frames / 60.0 - watch.Elapsed.TotalSeconds;
