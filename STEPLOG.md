@@ -196,3 +196,35 @@ Not done, owner decides: `docs/` website (upstream marketing for Mac/Linux, stil
 first tag/release. The zip is unsigned: Windows SmartScreen may warn on first run.
 
 Owner decisions 2026-11-01: `docs/` deleted; no rename (exe stays "Goggle 3 LiveView"); first release is a pre-release, bench checks pending.
+
+## Image quality step 1 (2026-11-02)
+
+Owner: picture visibly worse than other Goggles 3 apps; also asked about a faster codec / H.265. Research before code:
+
+| Source | Finding |
+|---|---|
+| [wllm-rbnt/third-eye](https://github.com/wllm-rbnt/third-eye) PROTOCOL.md §5, §12, §13 | Phone link (AOA/iAP2 via a Linux USB gadget), H.264 "not H.265", always 1080p30, no mode command. Its UDP 9003 summary agrees with `LiveProtocol`; nothing contradicts it |
+| upstream `knpuma/goggle-3-liveview` main + multi-v0.5.0 | Windows decoder = our pre-fix setup (`-threads 2`, BGRA via pipe, `LowQuality`); no hwaccel |
+| Codex (one investigation, no repo access: sandbox blocked local reads) | ranked: SIMD build < d3d11va < in-process libavcodec < GPU presentation; `h264_cuvid` display delay 4 without LOW_DELAY; `+showall` cannot guarantee hardware recovery without IDR; 100 Hz display shows 30 fps as 3/3/4 refreshes |
+| CosmoStreamer site | Pi 4B, HDMI out, no latency number published; architecture consistent with the phone link (third-eye §12) |
+
+| Change | Proof |
+|---|---|
+| `Yuv420`: bilinear chroma for H.264 siting (vertical (3a+b+2)/4, horizontal mean), was nearest | new `ToBgra_BlendsChromaAcrossAColourEdge` (red on old code: blue 0 at the mid-edge pixel, wants 128); formula check now against the bilinear definition (measured error on a random 1080p frame: G ≤ 1, R ≤ 2, B ≤ 3 on 0.1 %); SIMD = scalar bytes; 2.50 ms vs 2.44 ms per frame (Release, bench PC) |
+| `MainWindow.xaml`: `BitmapScalingMode` HighQuality | WPF window on the bench PC (GTX 1050 Ti), 1080p test pattern shown at 1280x720: LowQuality turns 1-px diagonal lines into horizontal moire bands, HighQuality keeps them |
+
+Codex review (one round, diff pasted: its sandbox cannot read the repo): **APPROVE**, no P1.
+
+| Codex | Point | Verdict + proof |
+|---|---|---|
+| P3 | Float reference with tolerance can hide a rounding slip shared by SIMD and scalar | **kept**: `Upsample_RoundsHalfUpExactly` (exact round-half-up, chroma widths 1, 17, 40, both paths). Planted truncation: the float tests stayed green, the new test failed 4/4 |
+| P2 | HighQuality on a bitmap rewritten 30x/s may be costly | **measured, confirmed for windowed mode**: C# WPF harness like the app (1080p `WriteableBitmap`, `WritePixels` at 30/s, 1180x760 window, bench PC): UI process CPU 30-31 % -> 63-65 % of one core, GPU 3D 3-8 % either way, 30 writes/s kept. Fullscreen 1:1 (1920x1080): 21-25 % both modes. WPF does the HighQuality filter on the CPU; ~11 ms extra work per frame windowed may add display delay (bench check) |
+
+CI: the `screenshots` job (Release tests) failed `ToBgra_Converts1080pFastEnoughForLiveVideo` at 17.9 ms (limit 15). Not a
+regression: with one warm-up call the methods still run as tier-0 code; first 10 frames on the bench PC were 12-16 ms new and
+12-15 ms main. Fix: `[MethodImpl(AggressiveOptimization)]` on `Convert`, `Upsample`, `Row8`: first 10 frames 3.8-5.5 ms.
+
+Found on the way (not fixed here): the bundled ffmpeg's scaler scrambles rows on every upscale (see CLAUDE.md "Still
+open"); `--replay` of the 320x180 test clip is unusable for visual checks on this build. Live 1080p is a byte-identical
+passthrough. Bench check pending: OSD text and fine detail with real goggles, windowed and fullscreen.
+

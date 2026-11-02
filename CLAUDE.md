@@ -42,7 +42,7 @@ Needs .NET SDK 10 (`sudo pacman -S dotnet-sdk`). `TreatWarningsAsErrors` is on: 
   set on every 10th unit in some sessions (meaning unknown). Max 63 parts per unit; bigger frames continue in the next
   unit. Type 1 = goggles status every 100 ms (echoes the last ACKed seq), ignored. `LostUnits` -> diagnostics line.
 - `FfmpegVideoSession`: UDP -> `H264Queue` (never blocks UDP; 30 units ~ 1 s, full = skip to next keyframe) -> `ffmpeg.exe`
-  stdin (`-threads 1`); stdout = 1920x1080 I420 -> `Yuv420.ToBgra` (AVX2, BT.709 tv range, 3 ms) -> `LatestFrame` triple
+  stdin (`-threads 1`); stdout = 1920x1080 I420 -> `Yuv420.ToBgra` (AVX2, BT.709 tv range, bilinear chroma, 2.5 ms) -> `LatestFrame` triple
   buffer -> `Frame` event, UI calls `TakeLatestFrame()`.
   `Mp4Recorder`: second ffmpeg, copies the H.264 (`-c copy`) into a fragmented MP4 (playable even if killed).
 - `AdapterLocator`: finds the adapter via registry PnP id + cfgmgr32 (Missing / NeedsSetup / Ready), runs `Prepare-Usb.ps1`
@@ -97,6 +97,25 @@ with 0.5 % loss (new "Lost N incomplete video unit(s)" diagnostics line fires, n
 - The bundled ffmpeg has no SIMD (`--disable-x86asm`) and no hwaccel: a standard LGPL build would cut CPU and give
   headroom for heavy motion (downloading one was blocked in that session: owner decision).
 - Most of the remaining ~237 ms is camera + radio link + goggles, before the PC; the viewer cannot change it.
+- The bundled ffmpeg's scaler breaks every UPscale (rows scrambled: 320x180, 640x360, 960x540, 1280x720 -> 1080p, raw
+  input too). 1080p input passes through byte-identical, so live video is unaffected; `--replay` of the 320x180 test
+  clip shows coloured bands. Recheck with the step B1 ffmpeg build.
+
+## Image quality + decoder plan (2026-11-02, owner: "picture worse than other apps, delay")
+
+Research (Claude + Codex, sources in `STEPLOG.md`): the goggles send H.264 only (third-eye captures; no codec field in
+the UDP handshake), so H.265 is not an option. Upstream Windows = our pre-fix pipeline, nothing to take. third-eye
+documents the phone (AOA/iAP2) link, not our UDP path; its UDP summary (XOR byte 7, payload at 20, seq step 8, ACKs)
+matches `LiveProtocol`. CosmoStreamer / DJI Fly use the phone link + hardware decode straight to the screen; a PC
+cannot be the USB device for that link.
+- Step 1 (done, bench check pending): WPF `BitmapScalingMode` LowQuality -> HighQuality (window always downscales;
+  LowQuality turned fine lines into moire, checked on the bench PC's GTX 1050 Ti); `Yuv420` chroma bilinear instead
+  of nearest (H.264 siting, exact integer rounding, SIMD = scalar bytes), same speed (2.50 vs 2.44 ms).
+  Cost: HighQuality is CPU work in WPF: windowed +~34 % of one core (30 -> 64 %), fullscreen 1:1 no change.
+- Step B1 (next): own LGPL ffmpeg 8.0.3 build with x86asm + `d3d11va` (vendor neutral: NVIDIA/AMD/Intel; not
+  `h264_cuvid`, which buffers 4 frames without LOW_DELAY). Measure vs software; test no-IDR start + loss on hardware.
+- Step C (owner decides after B1 numbers): in-process libavcodec (FFmpeg.AutoGen) to drop the CLI's held frame.
+- Step D (later, maybe): GPU presentation (D3D11 swap chain) instead of WPF `WriteableBitmap`.
 
 ## CI
 
