@@ -323,7 +323,9 @@ public partial class MainWindow
         closing = true; ConnectButton.IsEnabled = RecordButton.IsEnabled = false;
         stats.Stop(); await DisconnectAsync();
         await log.CloseAsync(); // the last lines (why it stopped) must reach the file
-        closed = true; Close();
+        closed = true;
+        await Task.Yield(); // with nothing to disconnect every await above completes at once: Close() inside the Closing event throws
+        Close();
     }
     private void TutorialClick(object sender, RoutedEventArgs e) => new TutorialWindow { Owner = this }.ShowDialog();
 

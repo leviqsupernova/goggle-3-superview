@@ -184,3 +184,10 @@ never block on a dialog when the goggles are absent (status text instead), refus
   recording length vs clock (constant 60 fps timestamps).
 - 2026-11-01 stress soak (Linux, 30 min): 57 restarts, 0 unplanned ends, memory/threads flat, 2 ffmpeg, 0 UDP drops,
   58 recordings all readable (99 121/99 121 frames).
+- 2026-11-02 first real Goggles 3 (firmware 01.00.1600, Windows 10): no video until the 5D shortcut-bar toggle "Share Liveview to
+  Mobile Device via Wi-Fi" is on (it is not a Settings page; the Wi-Fi sharing / Broadcast screens are different). With it on, a
+  plain script using our handshake + ACK streams steadily (~12 Mbit/s, ~950 packets/s, 20 s). A new session right after a dropped
+  one gets video only after ~4 s. Windows Firewall rules that Block the exe on Public networks drop the goggles' replies (the DJI
+  adapter is classed Public): remove them, or allow UDP 12346 from 192.168.60.2. Not fixed in code (`Prepare-Usb.ps1` says it
+  never touches the firewall: owner decision needed). Closing an idle viewer crashed (`Close()` inside the Closing event): fixed
+  with `Task.Yield()`, 5/5 clean closes, exit code 0. One unexplained stall (video stopped ~3 s after start, once, not repeated).

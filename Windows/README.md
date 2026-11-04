@@ -5,7 +5,7 @@ Windows x64 only. Extract the **whole** ZIP and open **Goggle 3 LiveView.exe**. 
 ## First USB connection
 
 1. Connect the goggles with a USB data cable.
-2. On the goggles, turn on **OTG Wired Connection** and **LiveView sharing** (the in-app **Tutorial** shows where).
+2. On the goggles, turn on **OTG Wired Connection** (Settings > About) and **Share Liveview to Mobile Device via Wi-Fi** (push the 5D button backward, select the phone icon with Wi-Fi waves in the shortcut bar). The in-app **Tutorial** shows both.
 3. Click **Connect**. Windows should use Microsoft's RNDIS adapter driver. **Do not replace it with WinUSB / Zadig.**
 
 The app finds the goggles by VID `2CA3` and PID `0020`. If the adapter is not set up yet, **Connect** asks first, then asks Windows for administrator permission. It adds `192.168.60.1/24` to that adapter only. Other networks, DNS, the default gateway and the firewall are not changed. Video requests go to `192.168.60.2:9003` from local port `12346`.

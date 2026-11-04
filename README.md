@@ -12,7 +12,7 @@ superflash starts it with `--connect`: it connects by itself and keeps reconnect
 ## Connect
 
 1. Connect the Goggles 3 with a USB data cable.
-2. On the goggles: Settings > About > **OTG Wired Connection**, and enable liveview sharing.
+2. On the goggles: Settings > About > **OTG Wired Connection**, and turn on **Share Liveview to Mobile Device via Wi-Fi** (push the 5D button backward, select the phone icon with Wi-Fi waves; it is a toggle in that shortcut bar, not a Settings page).
 3. Open the app and click **Connect**. The first time, it asks before it requests administrator permission to set up the goggles USB network adapter (only that adapter).
 
 ## Build

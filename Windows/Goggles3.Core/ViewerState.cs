@@ -9,7 +9,7 @@ public sealed record ViewerStatus(string Badge, string Title, string Hint, Viewe
     public static readonly ViewerStatus WaitingForGoggles = new("Waiting for goggles", "Plug in the goggles", "Use a USB-C data cable. The viewer connects by itself.", ViewerLight.Waiting);
     public static readonly ViewerStatus NeedsSetup = new("Setup needed", "The USB connection is not set up", "Click Set up. Windows asks for admin permission once.", ViewerLight.Problem);
     public static readonly ViewerStatus Connecting = new("Connecting…", "Connecting to the goggles", "", ViewerLight.Waiting);
-    public static readonly ViewerStatus NoVideo = new("No video", "No video from the goggles", "Turn on LiveView sharing on the goggles. Tutorial shows how.", ViewerLight.Waiting);
+    public static readonly ViewerStatus NoVideo = new("No video", "No video from the goggles", "Turn on Share Liveview in the goggles 5D shortcut bar. Tutorial shows how.", ViewerLight.Waiting);
     public static readonly ViewerStatus Live = new("Live", "", "", ViewerLight.Live);
     public static readonly ViewerStatus Replay = new("Test video, not live", "", "", ViewerLight.Live);
     public static readonly ViewerStatus SetupCancelled = new("Not connected", "Setup cancelled", "Click Connect to try again.", ViewerLight.Off);

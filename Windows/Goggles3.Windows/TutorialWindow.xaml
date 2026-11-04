@@ -28,8 +28,8 @@
       <TextBlock Text="On the goggles: Settings → About → OTG Wired Connection. DJI documents this setting for connecting the goggles to a computer." Style="{StaticResource StepText}"/></StackPanel></Grid>
     <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
      <TextBlock Text="3" Style="{StaticResource Number}"/>
-     <StackPanel Grid.Column="1"><TextBlock Text="Turn on LiveView sharing" Style="{StaticResource StepTitle}"/>
-      <TextBlock Text="Push the 5D button backward and turn on LiveView sharing to a mobile device over Wi-Fi. The viewer needs this setting for USB video too." Style="{StaticResource StepText}"/></StackPanel></Grid>
+     <StackPanel Grid.Column="1"><TextBlock Text="Turn on Share Liveview" Style="{StaticResource StepTitle}"/>
+      <TextBlock Text="Push the 5D button backward to open the shortcut bar. Select the phone icon with Wi-Fi waves, Share Liveview to Mobile Device via Wi-Fi, so it turns yellow. It is a toggle in that bar, not a Settings page. The viewer needs it for USB video too; the PC does not join the goggles Wi-Fi." Style="{StaticResource StepText}"/></StackPanel></Grid>
     <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
      <TextBlock Text="4" Style="{StaticResource Number}"/>
      <StackPanel Grid.Column="1"><TextBlock Text="Show the goggles screen without a drone" Style="{StaticResource StepTitle}"/>
@@ -37,7 +37,7 @@
     <Grid Style="{StaticResource Step}"><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition/></Grid.ColumnDefinitions>
      <TextBlock Text="5" Style="{StaticResource Number}"/>
      <StackPanel Grid.Column="1"><TextBlock Text="Click Connect" Style="{StaticResource StepTitle}"/>
-      <TextBlock Text="The first time, Windows asks for admin permission to set up the goggles USB adapter. Do not use Zadig or replace its driver with WinUSB. No video? Click Disconnect, turn LiveView sharing off and on again on the goggles, then click Connect." Style="{StaticResource StepText}"/></StackPanel></Grid>
+      <TextBlock Text="The first time, Windows asks for admin permission to set up the goggles USB adapter. Do not use Zadig or replace its driver with WinUSB. No video? Check that the drone picture shows in the goggles, click Disconnect, turn Share Liveview off and on again, then click Connect. After a restart the goggles can take about 5 seconds to start sending." Style="{StaticResource StepText}"/></StackPanel></Grid>
 
     <TextBlock Text="Record saves an MP4 in Videos › Goggle 3 LiveView. Click Stop to finish the file." TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource Muted}" Margin="0,4,0,0"/>
     <DockPanel Margin="0,22,0,16" LastChildFill="False">
