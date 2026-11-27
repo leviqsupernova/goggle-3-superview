@@ -150,7 +150,6 @@ CI does not cover: running the WPF UI, `Prepare-Usb.ps1`, real goggles. Those ar
 - [x] 6. Soak: 30 min stress soak on Linux instead of 8 h (owner decision 2026-11-01), passed, see `STEPLOG.md`.
       Real goggles: short check on the bench when available.
 - [x] 7. (PR pending) Release zip (`Publish.ps1 -Zip`, `release.yml` on tag `v*` drafts a release), READMEs and notices cleaned. No PRs to `upstream`.
-Model: Opus for steps 1-3 and structure decisions; Sonnet for 0, 4, 6, 7 and mechanical porting.
 
 ## Removal (done in step 0b)
 
